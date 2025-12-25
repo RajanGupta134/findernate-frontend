@@ -8,9 +8,6 @@ const nextConfig: NextConfig = {
     formats: ['image/avif', 'image/webp']
 
   },
-  eslint:{
-    ignoreDuringBuilds: true,
-  },
   // Disable static page generation to prevent SSR document errors
   output: 'standalone',
   experimental: {
