@@ -4,12 +4,24 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
 const nextConfig: NextConfig = {
   images: {
-    domains: ['findernate-media.b-cdn.net', 'res.cloudinary.com', 'example.com', 'images.pexels.com', 'ui-avatars.com', 'cdn.pixabay.com', 'picsum.photos',"randomuser.me","images.unsplash.com","media.istockphoto.com","localhost","www.pexels.com", "getstream.io" ],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'findernate-media.b-cdn.net' },
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
+      { protocol: 'https', hostname: 'example.com' },
+      { protocol: 'https', hostname: 'images.pexels.com' },
+      { protocol: 'https', hostname: 'ui-avatars.com' },
+      { protocol: 'https', hostname: 'cdn.pixabay.com' },
+      { protocol: 'https', hostname: 'picsum.photos' },
+      { protocol: 'https', hostname: 'randomuser.me' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: 'media.istockphoto.com' },
+      { protocol: 'http', hostname: 'localhost' },
+      { protocol: 'https', hostname: 'localhost' },
+      { protocol: 'https', hostname: 'www.pexels.com' },
+      { protocol: 'https', hostname: 'getstream.io' }
+    ],
     formats: ['image/avif', 'image/webp']
-
   },
-  // Disable static page generation to prevent SSR document errors
-  output: 'standalone',
   experimental: {
     // Force all pages to use dynamic rendering
   },
