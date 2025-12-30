@@ -269,15 +269,9 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
             }
           }
         } else {
-          // Check if this is a temporarily accepted chat that should still be treated as a request
-          const shouldTreatAsRequest = viewedRequests?.has(chatId) || false;
-
-          if (shouldTreatAsRequest) {
-            //console.log('This chat was temporarily accepted but should remain as request');
-            setIsRequestChat(true);
-          } else {
-            setIsRequestChat(false);
-          }
+          // This chat is NOT in messageRequests, so it's an active chat
+          // The user should always be able to send messages in active chats
+          setIsRequestChat(false);
 
           const response = await messageAPI.getChatMessages(chatId);
 
