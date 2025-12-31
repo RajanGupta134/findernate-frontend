@@ -33,6 +33,10 @@ export interface Message {
     emoji: string;
     timestamp: string;
   }>;
+  // Optimistic UI fields
+  isPending?: boolean;
+  isFailed?: boolean;
+  tempId?: string;
 }
 
 export interface Chat {

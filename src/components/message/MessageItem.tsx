@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, CheckCheck, MoreVertical } from 'lucide-react';
+import { Check, CheckCheck, MoreVertical, Clock, AlertCircle } from 'lucide-react';
 import { Message, Chat } from '@/api/message';
 import { MediaRenderer } from './MediaRenderer';
 import MessageMediaModal from './MessageMediaModal';
@@ -67,10 +67,14 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       data-message-id={msg._id}
       className={`flex ${isCurrentUser ? "justify-end" : "justify-start"} mb-4 group relative`}
     >
-      <div 
+      <div
         className={`max-w-xs px-4 py-3 rounded-2xl relative break-words ${
-          isCurrentUser 
-            ? "bg-[#DBB42C] text-white" 
+          isCurrentUser
+            ? msg.isFailed
+              ? "bg-red-400 text-white"
+              : msg.isPending
+                ? "bg-[#DBB42C] text-white opacity-70"
+                : "bg-[#DBB42C] text-white"
             : "bg-gray-100 text-gray-900"
         }`}
         style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}
@@ -89,16 +93,24 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           isCurrentUser ? "text-yellow-100" : "text-gray-500"
         }`}>
           <span className="flex-1 text-right">
-            {new Date(msg.timestamp).toLocaleString([], { 
-              month: 'short', 
-              day: 'numeric', 
-              hour: '2-digit', 
-              minute: '2-digit' 
+            {new Date(msg.timestamp).toLocaleString([], {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
             })}
           </span>
           {isCurrentUser && (
             <span className="ml-2 flex items-center">
-              {msg.readBy.length > 1 ? (
+              {msg.isPending ? (
+                <span title="Sending...">
+                  <Clock className="w-3 h-3 animate-pulse" />
+                </span>
+              ) : msg.isFailed ? (
+                <span title="Failed to send">
+                  <AlertCircle className="w-3 h-3 text-red-300" />
+                </span>
+              ) : msg.readBy.length > 1 ? (
                 <CheckCheck className="w-3 h-3" />
               ) : (
                 <Check className="w-3 h-3" />
@@ -107,7 +119,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           )}
         </div>
         
-        {isCurrentUser && (
+        {isCurrentUser && !msg.isPending && !msg.isFailed && (
           <button
             onClick={(e) => {
               e.stopPropagation();
