@@ -366,9 +366,9 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
   // Send message function
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!newMessage.trim() || !selectedChat || sendingMessage) return;
-
+    
     // Prevent sending messages if this is a request chat
     if (isRequestChat) {
       //console.log('Cannot send message - this is a request chat. User must accept first.');
@@ -384,75 +384,22 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
 
     await stopTypingIndicator();
 
-    // Generate temporary ID for optimistic UI
-    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const timestamp = new Date().toISOString();
-
-    // Create optimistic message
-    const optimisticMessage: Message = {
-      _id: tempId,
-      chatId: selectedChat,
-      sender: {
-        _id: user._id,
-        username: user.username,
-        fullName: user.fullName,
-        profileImageUrl: user.profileImageUrl
-      },
-      message: messageText,
-      messageType: 'text',
-      timestamp: timestamp,
-      readBy: [user._id],
-      isDeleted: false,
-      reactions: [],
-      isPending: true,
-      tempId: tempId
-    };
-
-    // Add optimistic message to UI immediately
-    setMessagesWithDebug(prev => [...prev, optimisticMessage]);
-
-    // Update chat list optimistically
-    setChats(prev => {
-      const updatedChats = prev.map(chat =>
-        chat._id === selectedChat
-          ? {
-              ...chat,
-              lastMessage: { sender: user._id, message: messageText, timestamp: timestamp },
-              lastMessageAt: timestamp,
-              unreadCount: 0
-            }
-          : chat
-      );
-      return updatedChats.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
-    });
-
-    // Force scroll to bottom when user sends a message
-    scrollToBottom(true);
-
     try {
       setSendingMessage(true);
       const message = await messageAPI.sendMessage(selectedChat, messageText);
 
-      //console.log('API: Replacing optimistic message with real message', message._id);
-      // Replace optimistic message with real message
-      // Also check if socket already added the real message
+      //console.log('API: Adding message from API response', message._id);
       setMessagesWithDebug(prev => {
-        const realMessageExists = prev.some(msg => msg._id === message._id && !msg.tempId);
-
-        if (realMessageExists) {
-          // Socket already added the real message, just remove the optimistic one
-          return prev.filter(msg => msg.tempId !== tempId);
+        const messageExists = prev.some(msg => msg._id === message._id);
+        //console.log('API: Message exists?', messageExists, 'Message ID:', message._id);
+        if (messageExists) {
+          //console.log('API: Skipping duplicate message');
+          return prev;
         }
-
-        // Replace optimistic message with real message
-        return prev.map(msg =>
-          msg.tempId === tempId
-            ? { ...message, isPending: false, tempId: undefined }
-            : msg
-        );
+        //console.log('API: Adding new message to state');
+        return [...prev, message];
       });
 
-      // Update chat list with real message data
       setChats(prev => {
         const updatedChats = prev.map(chat =>
           chat._id === selectedChat
@@ -460,29 +407,22 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
                 ...chat,
                 lastMessage: { sender: message.sender._id, message: message.message, timestamp: message.timestamp },
                 lastMessageAt: message.timestamp,
-                unreadCount: 0
+                unreadCount: 0  // Reset unread count when sending a message
               }
             : chat
         );
+
         return updatedChats.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
       });
 
+      // Force scroll to bottom when user sends a message
+      scrollToBottom(true);
+
       // Keep input focused after sending (like WhatsApp)
       messageInputRef.current?.focus();
-
+      
     } catch (error) {
       console.error('Failed to send message:', error);
-
-      // Mark optimistic message as failed
-      setMessagesWithDebug(prev =>
-        prev.map(msg =>
-          msg.tempId === tempId
-            ? { ...msg, isPending: false, isFailed: true }
-            : msg
-        )
-      );
-
-      // Restore message text to input
       setNewMessage(messageText);
     } finally {
       setSendingMessage(false);
