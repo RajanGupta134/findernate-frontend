@@ -16,13 +16,29 @@ interface UseMessageManagementProps {
   markChatAsRead?: (chatId: string) => void;
 }
 
+// Extended Message type for optimistic updates
+interface OptimisticMessage extends Message {
+  _tempId?: string;
+  _sending?: boolean;
+  _failed?: boolean;
+  _retryCount?: number;
+}
+
+// Message queue item
+interface QueuedMessage {
+  tempId: string;
+  text: string;
+  chatId: string;
+  retryCount: number;
+}
+
 export const useMessageManagement = ({ selectedChat, user, setChats, messageRequests, viewedRequests, markRequestAsViewed, refreshChatsWithAccurateUnreadCounts, markChatAsRead }: UseMessageManagementProps) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<OptimisticMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   // Debug messages state changes
   const originalSetMessages = setMessages;
-  const debugSetMessages = (newMessages: Message[] | ((prev: Message[]) => Message[])) => {
+  const debugSetMessages = (newMessages: OptimisticMessage[] | ((prev: OptimisticMessage[]) => OptimisticMessage[])) => {
     if (typeof newMessages === 'function') {
       originalSetMessages(prev => {
         const result = newMessages(prev);
@@ -41,6 +57,10 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
   const [newMessage, setNewMessage] = useState("");
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
   const [showContextMenu, setShowContextMenu] = useState<{messageId: string, x: number, y: number} | null>(null);
+
+  // Message queue for handling rapid sends
+  const messageQueueRef = useRef<QueuedMessage[]>([]);
+  const isProcessingQueueRef = useRef(false);
   
   const searchParams = useSearchParams();
   
@@ -272,6 +292,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
           // This chat is NOT in messageRequests, so it's an active chat
           // The user should always be able to send messages in active chats
           setIsRequestChat(false);
+          
 
           const response = await messageAPI.getChatMessages(chatId);
 
@@ -366,9 +387,9 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
   // Send message function
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!newMessage.trim() || !selectedChat || sendingMessage) return;
-    
+
     // Prevent sending messages if this is a request chat
     if (isRequestChat) {
       //console.log('Cannot send message - this is a request chat. User must accept first.');
@@ -376,6 +397,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     }
 
     const messageText = newMessage.trim();
+    const tempId = `temp-${Date.now()}-${Math.random()}`;
 
     // Keep the input focused before clearing message (prevents keyboard close on mobile)
     messageInputRef.current?.focus();
@@ -384,20 +406,39 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
 
     await stopTypingIndicator();
 
+    // Create optimistic message
+    const optimisticMessage: OptimisticMessage = {
+      _id: tempId,
+      _tempId: tempId,
+      _sending: true,
+      message: messageText,
+      sender: {
+        _id: user._id,
+        username: user.username,
+        fullName: user.fullName,
+        profileImageUrl: user.profileImageUrl
+      },
+      chatId: selectedChat,
+      timestamp: new Date().toISOString(),
+      readBy: [user._id],
+      messageType: 'text',
+      isDeleted: false,
+      reactions: []
+    };
+
+    // Add optimistic message immediately
+    setMessagesWithDebug(prev => [...prev, optimisticMessage]);
+    scrollToBottom(true);
+
     try {
       setSendingMessage(true);
       const message = await messageAPI.sendMessage(selectedChat, messageText);
 
-      //console.log('API: Adding message from API response', message._id);
+      // Replace optimistic message with real message
       setMessagesWithDebug(prev => {
-        const messageExists = prev.some(msg => msg._id === message._id);
-        //console.log('API: Message exists?', messageExists, 'Message ID:', message._id);
-        if (messageExists) {
-          //console.log('API: Skipping duplicate message');
-          return prev;
-        }
-        //console.log('API: Adding new message to state');
-        return [...prev, message];
+        return prev.map(msg =>
+          msg._tempId === tempId ? message : msg
+        );
       });
 
       setChats(prev => {
@@ -415,15 +456,18 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
         return updatedChats.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
       });
 
-      // Force scroll to bottom when user sends a message
-      scrollToBottom(true);
-
       // Keep input focused after sending (like WhatsApp)
       messageInputRef.current?.focus();
-      
+
     } catch (error) {
       console.error('Failed to send message:', error);
-      setNewMessage(messageText);
+
+      // Mark message as failed
+      setMessagesWithDebug(prev => {
+        return prev.map(msg =>
+          msg._tempId === tempId ? { ...msg, _sending: false, _failed: true } : msg
+        );
+      });
     } finally {
       setSendingMessage(false);
     }
@@ -539,6 +583,59 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     }
   };
 
+  // Retry failed message
+  const retryMessage = async (tempId: string) => {
+    const failedMessage = messages.find(msg => msg._tempId === tempId);
+    if (!failedMessage || !selectedChat) return;
+
+    // Mark as sending again
+    setMessagesWithDebug(prev =>
+      prev.map(msg =>
+        msg._tempId === tempId
+          ? { ...msg, _sending: true, _failed: false }
+          : msg
+      )
+    );
+
+    try {
+      const message = await messageAPI.sendMessage(selectedChat, failedMessage.message);
+
+      // Replace with real message
+      setMessagesWithDebug(prev =>
+        prev.map(msg =>
+          msg._tempId === tempId ? message : msg
+        )
+      );
+
+      setChats(prev => {
+        const updatedChats = prev.map(chat =>
+          chat._id === selectedChat
+            ? {
+                ...chat,
+                lastMessage: { sender: message.sender._id, message: message.message, timestamp: message.timestamp },
+                lastMessageAt: message.timestamp,
+                unreadCount: 0
+              }
+            : chat
+        );
+
+        return updatedChats.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+      });
+
+    } catch (error) {
+      console.error('Failed to retry message:', error);
+
+      // Mark as failed again
+      setMessagesWithDebug(prev =>
+        prev.map(msg =>
+          msg._tempId === tempId
+            ? { ...msg, _sending: false, _failed: true }
+            : msg
+        )
+      );
+    }
+  };
+
   // Cleanup typing indicators on unmount
   useEffect(() => {
     return () => {
@@ -574,6 +671,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     handleInputChange,
     scrollToBottom,
     markUnreadMessagesAsSeen,
-    stopTypingIndicator
+    stopTypingIndicator,
+    retryMessage
   };
 };

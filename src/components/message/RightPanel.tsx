@@ -20,6 +20,7 @@ interface RightPanelProps {
   onVoiceCall?: (chat: Chat) => void;
   onVideoCall?: (chat: Chat) => void;
   isInitiatingCall?: boolean;
+  onRetryMessage?: (tempId: string) => void;
 
   // Message input props
   newMessage: string;
@@ -58,6 +59,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   onVoiceCall,
   onVideoCall,
   isInitiatingCall = false,
+  onRetryMessage,
   newMessage,
   setNewMessage,
   onSendMessage,
@@ -161,6 +163,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
               selected={selected}
               user={user}
               onContextMenu={onContextMenu}
+              onRetry={onRetryMessage}
             />
           ))
         )}

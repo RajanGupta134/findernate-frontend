@@ -6,6 +6,11 @@ import socketManager from '@/utils/socket';
 import { requestChatCache } from '@/utils/requestChatCache';
 import { refreshUnreadCounts } from '@/hooks/useUnreadCounts';
 
+// Extended Message type for optimistic updates
+interface OptimisticMessage extends Message {
+  _sending?: boolean;
+}
+
 interface UseSocketProps {
   selectedChat: string | null;
   user: any;
@@ -166,13 +171,23 @@ export const useSocket = ({
       if (data.chatId === selectedChatRef.current) {
         // //console.log('Socket: Received new message', data.message._id);
         setMessages(prev => {
-          const messageExists = prev.some(msg => msg._id === data.message._id);
+          // Check if message already exists by ID or if there's a pending optimistic message
+          const messageExists = prev.some(msg =>
+            msg._id === data.message._id ||
+            ((msg as OptimisticMessage)._sending && msg.message === data.message.message)
+          );
+
           if (messageExists) {
-            // //console.log('Socket: Skipping duplicate message');
-            return prev;
+            // Replace optimistic message with real one if it exists
+            return prev.map(msg => {
+              if ((msg as OptimisticMessage)._sending && msg.message === data.message.message) {
+                return data.message;
+              }
+              return msg;
+            });
           }
           // //console.log('Socket: Adding new message to state');
-          
+
           // If this is a request chat that we're currently viewing, update the cache as well
           const chatInRequests = messageRequests.find(r => r._id === data.chatId);
           if (chatInRequests) {

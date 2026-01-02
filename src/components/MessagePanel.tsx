@@ -79,7 +79,8 @@ export default function MessagePanel() {
     handleSendMessage,
     handleDeleteMessage,
     handleInputChange,
-    scrollToBottom
+    scrollToBottom,
+    retryMessage
   } = useMessageManagement({ selectedChat, user, setChats, messageRequests, viewedRequests, markRequestAsViewed, refreshChatsWithAccurateUnreadCounts, markChatAsRead });
 
   // File upload
@@ -237,6 +238,7 @@ export default function MessagePanel() {
             onProfileClick={(chat) => handleProfileClick(chat, setShowGroupDetails)}
             onBack={() => setSelectedChat(null)}
             onContextMenu={(messageId, x, y) => setShowContextMenu({ messageId, x, y })}
+            onRetryMessage={retryMessage}
             newMessage={newMessage}
             setNewMessage={setNewMessage}
             onSendMessage={handleFormSubmit}

@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
-import { Check, CheckCheck, MoreVertical } from 'lucide-react';
+import { Check, CheckCheck, MoreVertical, Clock, AlertCircle, RotateCw } from 'lucide-react';
 import { Message, Chat } from '@/api/message';
 import { MediaRenderer } from './MediaRenderer';
 import MessageMediaModal from './MessageMediaModal';
 
+interface OptimisticMessage extends Message {
+  _tempId?: string;
+  _sending?: boolean;
+  _failed?: boolean;
+  _retryCount?: number;
+}
+
 interface MessageItemProps {
-  msg: Message;
+  msg: OptimisticMessage;
   isCurrentUser: boolean;
   selected: Chat;
   user: any;
   onContextMenu: (messageId: string, x: number, y: number) => void;
+  onRetry?: (tempId: string) => void;
 }
 
 export const MessageItem: React.FC<MessageItemProps> = ({
@@ -17,7 +25,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   isCurrentUser,
   selected,
   user,
-  onContextMenu
+  onContextMenu,
+  onRetry
 }) => {
   const [showMediaModal, setShowMediaModal] = useState(false);
 
@@ -63,17 +72,17 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   };
 
   return (
-    <div 
+    <div
       data-message-id={msg._id}
-      className={`flex ${isCurrentUser ? "justify-end" : "justify-start"} mb-4 group relative`}
+      className={`flex ${isCurrentUser ? "justify-end" : "justify-start"} mb-4 group relative animate-fadeIn`}
     >
-      <div 
+      <div
         className={`max-w-xs px-4 py-3 rounded-2xl relative break-words ${
-          isCurrentUser 
-            ? "bg-[#DBB42C] text-white" 
+          isCurrentUser
+            ? "bg-[#DBB42C] text-white"
             : "bg-gray-100 text-gray-900"
-        }`}
-        style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}
+        } ${msg._sending ? 'opacity-90' : 'opacity-100'}`}
+        style={{ wordWrap: 'break-word', overflowWrap: 'break-word', transition: 'opacity 0.2s ease-in-out' }}
       >
         {(!isCurrentUser || selected?.chatType === 'group') && (
           <p className="text-xs font-medium mb-1 opacity-80">
@@ -89,19 +98,36 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           isCurrentUser ? "text-yellow-100" : "text-gray-500"
         }`}>
           <span className="flex-1 text-right">
-            {new Date(msg.timestamp).toLocaleString([], { 
-              month: 'short', 
-              day: 'numeric', 
-              hour: '2-digit', 
-              minute: '2-digit' 
+            {new Date(msg.timestamp).toLocaleString([], {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
             })}
           </span>
           {isCurrentUser && (
-            <span className="ml-2 flex items-center">
-              {msg.readBy.length > 1 ? (
-                <CheckCheck className="w-3 h-3" />
+            <span className="ml-2 flex items-center gap-1">
+              {msg._sending ? (
+                <span title="Sending...">
+                  <Clock className="w-3 h-3 animate-pulse" />
+                </span>
+              ) : msg._failed ? (
+                <button
+                  onClick={() => msg._tempId && onRetry?.(msg._tempId)}
+                  className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+                  title="Failed to send. Click to retry"
+                >
+                  <AlertCircle className="w-3 h-3 text-red-300" />
+                  <RotateCw className="w-3 h-3" />
+                </button>
+              ) : msg.readBy.length > 1 ? (
+                <span title="Read">
+                  <CheckCheck className="w-3 h-3" />
+                </span>
               ) : (
-                <Check className="w-3 h-3" />
+                <span title="Sent">
+                  <Check className="w-3 h-3" />
+                </span>
               )}
             </span>
           )}
