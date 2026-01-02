@@ -388,7 +388,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!newMessage.trim() || !selectedChat || sendingMessage) return;
+    if (!newMessage.trim() || !selectedChat) return;
 
     // Prevent sending messages if this is a request chat
     if (isRequestChat) {
@@ -398,13 +398,6 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
 
     const messageText = newMessage.trim();
     const tempId = `temp-${Date.now()}-${Math.random()}`;
-
-    // Keep the input focused before clearing message (prevents keyboard close on mobile)
-    messageInputRef.current?.focus();
-
-    setNewMessage("");
-
-    await stopTypingIndicator();
 
     // Create optimistic message
     const optimisticMessage: OptimisticMessage = {
@@ -426,19 +419,34 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
       reactions: []
     };
 
-    // Add optimistic message immediately
+    // Add optimistic message immediately and clear input (batched state updates)
     setMessagesWithDebug(prev => [...prev, optimisticMessage]);
+    setNewMessage("");
+
+    // Stop typing indicator in background
+    stopTypingIndicator();
+
+    // Scroll to bottom and keep focus
     scrollToBottom(true);
+    messageInputRef.current?.focus();
 
     try {
-      setSendingMessage(true);
       const message = await messageAPI.sendMessage(selectedChat, messageText);
 
-      // Replace optimistic message with real message
+      // Update message in-place (smooth transition - no blink)
       setMessagesWithDebug(prev => {
-        return prev.map(msg =>
-          msg._tempId === tempId ? message : msg
-        );
+        return prev.map(msg => {
+          if (msg._tempId === tempId) {
+            // Keep _tempId for stable React key, merge server data
+            return {
+              ...message,
+              _tempId: tempId, // Preserve for stable rendering
+              _sending: false,  // Mark as sent
+              _failed: false,
+            };
+          }
+          return msg;
+        });
       });
 
       setChats(prev => {
@@ -468,8 +476,6 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
           msg._tempId === tempId ? { ...msg, _sending: false, _failed: true } : msg
         );
       });
-    } finally {
-      setSendingMessage(false);
     }
   };
 

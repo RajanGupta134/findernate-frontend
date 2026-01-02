@@ -180,8 +180,15 @@ export const useSocket = ({
           if (messageExists) {
             // Replace optimistic message with real one if it exists
             return prev.map(msg => {
-              if ((msg as OptimisticMessage)._sending && msg.message === data.message.message) {
-                return data.message;
+              const optimisticMsg = msg as any;
+              if (optimisticMsg._sending && msg.message === data.message.message) {
+                // Preserve _tempId for stable React key
+                return {
+                  ...data.message,
+                  _tempId: optimisticMsg._tempId,
+                  _sending: false,
+                  _failed: false
+                };
               }
               return msg;
             });
@@ -297,14 +304,13 @@ export const useSocket = ({
     const handleMessagesRead = (data: { chatId: string; readBy: {_id: string}; messageIds?: string[] }) => {
       if (data.chatId === selectedChatRef.current) {
         setMessages(prev => prev.map(msg => {
-          if (data.messageIds) {
-            if (data.messageIds.includes(msg._id)) {
-              return { ...msg, readBy: [...msg.readBy.filter(id => id !== data.readBy._id), data.readBy._id] };
-            }
-          } else {
-            if (!msg.readBy.includes(data.readBy._id)) {
-              return { ...msg, readBy: [...msg.readBy, data.readBy._id] };
-            }
+          // Only update if message needs updating (prevents unnecessary re-renders)
+          const shouldUpdate = data.messageIds
+            ? data.messageIds.includes(msg._id) && !msg.readBy.includes(data.readBy._id)
+            : !msg.readBy.includes(data.readBy._id);
+
+          if (shouldUpdate) {
+            return { ...msg, readBy: [...msg.readBy, data.readBy._id] };
           }
           return msg;
         }));

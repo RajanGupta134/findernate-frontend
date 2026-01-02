@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { Check, CheckCheck, MoreVertical, Clock, AlertCircle, RotateCw } from 'lucide-react';
 import { Message, Chat } from '@/api/message';
 import { MediaRenderer } from './MediaRenderer';
@@ -20,7 +20,7 @@ interface MessageItemProps {
   onRetry?: (tempId: string) => void;
 }
 
-export const MessageItem: React.FC<MessageItemProps> = ({
+const MessageItemComponent: React.FC<MessageItemProps> = ({
   msg,
   isCurrentUser,
   selected,
@@ -73,7 +73,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 
   return (
     <div
-      data-message-id={msg._id}
+      data-message-id={msg._tempId || msg._id}
       className={`flex ${isCurrentUser ? "justify-end" : "justify-start"} mb-4 group relative animate-fadeIn`}
     >
       <div
@@ -82,7 +82,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             ? "bg-[#DBB42C] text-white"
             : "bg-gray-100 text-gray-900"
         } ${msg._sending ? 'opacity-90' : 'opacity-100'}`}
-        style={{ wordWrap: 'break-word', overflowWrap: 'break-word', transition: 'opacity 0.2s ease-in-out' }}
+        style={{
+          wordWrap: 'break-word',
+          overflowWrap: 'break-word',
+          transition: 'opacity 300ms cubic-bezier(0.4, 0, 0.2, 1), transform 200ms ease-out'
+        }}
       >
         {(!isCurrentUser || selected?.chatType === 'group') && (
           <p className="text-xs font-medium mb-1 opacity-80">
@@ -106,27 +110,27 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             })}
           </span>
           {isCurrentUser && (
-            <span className="ml-2 flex items-center gap-1">
+            <span className="ml-2 flex items-center gap-1 transition-all duration-300 ease-in-out">
               {msg._sending ? (
-                <span title="Sending...">
+                <span title="Sending..." className="animate-fadeIn">
                   <Clock className="w-3 h-3 animate-pulse" />
                 </span>
               ) : msg._failed ? (
                 <button
                   onClick={() => msg._tempId && onRetry?.(msg._tempId)}
-                  className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-1 hover:opacity-80 transition-opacity animate-fadeIn"
                   title="Failed to send. Click to retry"
                 >
                   <AlertCircle className="w-3 h-3 text-red-300" />
                   <RotateCw className="w-3 h-3" />
                 </button>
               ) : msg.readBy.length > 1 ? (
-                <span title="Read">
-                  <CheckCheck className="w-3 h-3" />
+                <span title="Read" className="animate-fadeIn">
+                  <CheckCheck className="w-3 h-3 transition-transform duration-200 ease-out" />
                 </span>
               ) : (
-                <span title="Sent">
-                  <Check className="w-3 h-3" />
+                <span title="Sent" className="animate-fadeIn">
+                  <Check className="w-3 h-3 transition-transform duration-200 ease-out" />
                 </span>
               )}
             </span>
@@ -159,3 +163,21 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     </div>
   );
 };
+
+// Memoize to prevent re-renders when message props haven't changed
+export const MessageItem = memo(MessageItemComponent, (prevProps, nextProps) => {
+  // Custom comparison for optimal re-rendering
+  const prevMsg = prevProps.msg;
+  const nextMsg = nextProps.msg;
+
+  // Re-render only if these specific properties change
+  return (
+    prevMsg._id === nextMsg._id &&
+    prevMsg._tempId === nextMsg._tempId &&
+    prevMsg._sending === nextMsg._sending &&
+    prevMsg._failed === nextMsg._failed &&
+    prevMsg.readBy.length === nextMsg.readBy.length &&
+    prevMsg.message === nextMsg.message &&
+    prevProps.isCurrentUser === nextProps.isCurrentUser
+  );
+});

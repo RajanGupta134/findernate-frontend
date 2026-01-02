@@ -152,7 +152,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             placeholder={selectedFile ? "Add a caption (optional)..." : "Type a message..."}
             value={newMessage}
             onChange={onInputChange}
-            disabled={sendingMessage || uploadingFile}
+            disabled={uploadingFile}
             className="w-full py-3 px-4 pr-10 border border-gray-300 rounded-full focus:ring-2 focus:ring-yellow-500 disabled:opacity-50 text-black placeholder-gray-400"
           />
           <button 
@@ -169,9 +169,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           </button>
         </div>
 
-        <button 
-          type="submit" 
-          disabled={(!newMessage.trim() && !selectedFile) || sendingMessage || uploadingFile}
+        <button
+          type="submit"
+          disabled={(!newMessage.trim() && !selectedFile) || uploadingFile}
           className="p-3 bg-[#DBB42C] hover:bg-yellow-500 text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {uploadingFile ? (

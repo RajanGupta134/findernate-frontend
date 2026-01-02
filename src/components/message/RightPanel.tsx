@@ -157,7 +157,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         ) : (
           messages.map((msg) => (
             <MessageItem
-              key={msg._id}
+              key={(msg as any)._tempId || msg._id}
               msg={msg}
               isCurrentUser={msg.sender._id === user?._id}
               selected={selected}
