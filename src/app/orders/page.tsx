@@ -18,7 +18,6 @@ import {
   getOrderStatusColor,
   getPaymentStatusLabel,
   getPaymentStatusColor,
-  canReportIssue,
 } from '@/api/orders';
 import { useUserStore } from '@/store/useUserStore';
 import { Download, Search, TrendingUp, Package, Filter, X, AlertTriangle } from 'lucide-react';
@@ -553,8 +552,10 @@ const OrdersPage = () => {
                           <p className="text-xs text-gray-400">{formatDate(order.createdAt)}</p>
                         </div>
 
-                        {/* Dispute Button - Only for buyers */}
-                        {activeTab === 'buying' && canReportIssue(order) && !order.dispute && (
+                        {/* Dispute Button - For buyers on eligible orders */}
+                        {activeTab === 'buying' &&
+                          !order.dispute &&
+                          !['cancelled', 'refunded', 'payment_pending'].includes(order.orderStatus) && (
                           <div className="mt-3 pt-3 border-t border-gray-100">
                             <button
                               onClick={(e) => openDisputeModal(e, order)}

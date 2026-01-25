@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/layout/AdminLayout';
 import { adminOrdersAPI } from '@/api/adminOrders';
 import { Order, getOrderStatusLabel, getOrderStatusColor, getPaymentStatusLabel, getPaymentStatusColor } from '@/api/orders';
-import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Scale, DollarSign, Undo2 } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, Scale, DollarSign, Undo2, X } from 'lucide-react';
 
 type ResolutionAction = 'refund_buyer' | 'release_seller' | 'partial_refund';
 
@@ -22,6 +22,8 @@ export default function DisputedOrdersPage() {
   const [resolution, setResolution] = useState('');
   const [action, setAction] = useState<ResolutionAction>('refund_buyer');
   const [refundPercentage, setRefundPercentage] = useState(100);
+  const [forceResolve, setForceResolve] = useState(false);
+  const [insufficientBalanceError, setInsufficientBalanceError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDisputedOrders();
@@ -46,21 +48,34 @@ export default function DisputedOrdersPage() {
     if (!selectedOrder || !resolution) return;
     try {
       setActionLoading(true);
-      await adminOrdersAPI.resolveDispute(
+      setInsufficientBalanceError(null);
+      const result = await adminOrdersAPI.resolveDispute(
         selectedOrder._id,
         resolution,
         action,
-        action === 'partial_refund' ? refundPercentage : 100
+        action === 'partial_refund' ? refundPercentage : 100,
+        forceResolve
       );
-      alert('Dispute resolved successfully!');
+      if (result.warning) {
+        alert(`Dispute resolved with warning: ${result.warning}`);
+      } else {
+        alert('Dispute resolved successfully!');
+      }
       setShowResolveModal(false);
       setSelectedOrder(null);
       setResolution('');
       setAction('refund_buyer');
       setRefundPercentage(100);
+      setForceResolve(false);
       fetchDisputedOrders();
     } catch (err: any) {
-      alert(err.message || 'Failed to resolve dispute');
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to resolve dispute';
+      // Check if it's an insufficient balance error
+      if (errorMessage.includes('Insufficient escrow balance')) {
+        setInsufficientBalanceError(errorMessage);
+      } else {
+        alert(errorMessage);
+      }
     } finally {
       setActionLoading(false);
     }
@@ -238,10 +253,26 @@ export default function DisputedOrdersPage() {
       {showResolveModal && selectedOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Scale className="h-5 w-5 text-amber-500" />
-              Resolve Dispute
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Scale className="h-5 w-5 text-amber-500" />
+                Resolve Dispute
+              </h3>
+              <button
+                onClick={() => {
+                  setShowResolveModal(false);
+                  setSelectedOrder(null);
+                  setResolution('');
+                  setAction('refund_buyer');
+                  setRefundPercentage(100);
+                  setForceResolve(false);
+                  setInsufficientBalanceError(null);
+                }}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
 
             <div className="bg-gray-50 rounded-lg p-4 mb-4">
               <p className="text-sm text-gray-600">
@@ -341,6 +372,26 @@ export default function DisputedOrdersPage() {
               />
             </div>
 
+            {insufficientBalanceError && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700 mb-3">{insufficientBalanceError}</p>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={forceResolve}
+                    onChange={(e) => setForceResolve(e.target.checked)}
+                    className="rounded border-red-300 text-red-500 focus:ring-red-500"
+                  />
+                  <span className="text-sm font-medium text-red-700">
+                    Force resolve without fund movement
+                  </span>
+                </label>
+                <p className="text-xs text-red-500 mt-1">
+                  This will update the order status without moving funds in the escrow wallet.
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
                 onClick={() => {
@@ -349,6 +400,8 @@ export default function DisputedOrdersPage() {
                   setResolution('');
                   setAction('refund_buyer');
                   setRefundPercentage(100);
+                  setForceResolve(false);
+                  setInsufficientBalanceError(null);
                 }}
                 className="flex-1 py-2 border border-gray-200 rounded-lg"
               >

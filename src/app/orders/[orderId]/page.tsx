@@ -15,7 +15,6 @@ import {
   getPaymentStatusLabel,
   getPaymentStatusColor,
   canConfirmDelivery,
-  canReportIssue,
   canShipOrder,
   canMarkDelivered,
 } from '@/api/orders';
@@ -365,12 +364,12 @@ const OrderDetailsPage = () => {
               Confirm Delivery
             </button>
           )}
-          {isBuyer && canReportIssue(order) && (
+          {isBuyer && !order.dispute && !['cancelled', 'refunded', 'payment_pending'].includes(order.orderStatus) && (
             <button
               onClick={() => setShowReportModal(true)}
               className="flex-1 py-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition"
             >
-              Report Issue
+              Dispute
             </button>
           )}
 
