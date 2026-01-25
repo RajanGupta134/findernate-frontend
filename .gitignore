@@ -1,0 +1,15 @@
+.env
+node_modules
+.next
+package-lock.json
+/dist
+.turbo/
+server/
+static
+// hello
+.env.local
+tsconfig.tsbuildinfo
+
+# Git Bash crash dumps
+bash.exe.stackdump
+.vscode

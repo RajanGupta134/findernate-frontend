@@ -1,0 +1,15 @@
+PLACEHOLDER FILE - Replace with actual ringtone.mp3
+
+To add ringtones to your application:
+
+1. Download or create a ringtone audio file (MP3 format recommended)
+2. Keep it short (3-10 seconds) as it will loop
+3. Replace this file with your ringtone.mp3
+4. Make sure the filename is exactly 'ringtone.mp3'
+
+Free ringtone sources:
+- https://www.freesound.org/ (search for "phone ring" or "ringtone")
+- https://www.zedge.net/ringtones
+- Create your own using Audacity or similar audio software
+
+If no audio file is provided, the application will fall back to browser-generated beep sounds.
