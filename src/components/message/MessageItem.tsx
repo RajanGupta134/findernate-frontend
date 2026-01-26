@@ -105,6 +105,28 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   const defaultColor = '#DBB42C';
   const bubbleColor = themeColor || defaultColor;
 
+  // Helper function to darken a hex color
+  const darkenColor = (hex: string, percent: number = 30): string => {
+    // Remove # if present
+    const color = hex.replace('#', '');
+
+    // Parse RGB values
+    const r = parseInt(color.substring(0, 2), 16);
+    const g = parseInt(color.substring(2, 4), 16);
+    const b = parseInt(color.substring(4, 6), 16);
+
+    // Darken each component
+    const darken = (value: number) => Math.max(0, Math.floor(value * (1 - percent / 100)));
+
+    // Convert back to hex
+    const toHex = (value: number) => value.toString(16).padStart(2, '0');
+
+    return `#${toHex(darken(r))}${toHex(darken(g))}${toHex(darken(b))}`;
+  };
+
+  // Darker version of bubble color for seen ticks
+  const seenTickColor = darkenColor(bubbleColor, 35);
+
   const handleMediaClick = () => {
     setShowMediaModal(true);
   };
@@ -243,7 +265,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 >
                   <CheckCheck
                     className="w-3 h-3 transition-all duration-200 ease-out"
-                    style={{ color: bubbleColor }}
+                    style={{ color: seenTickColor }}
                   />
                   {getSeenTime(msg) && (
                     <span className="text-[10px] opacity-70">{getSeenTime(msg)}</span>
