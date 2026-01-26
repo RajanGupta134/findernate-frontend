@@ -98,7 +98,26 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Prevent keyboard from dismissing on mobile by keeping focus
+    // Store current focus state before any async operations
+    const inputElement = messageInputRef.current;
+
+    // Use requestAnimationFrame to ensure focus is maintained smoothly
+    // This prevents the keyboard from flickering on mobile devices
+    if (inputElement) {
+      // Keep input focused during send to prevent keyboard dismiss
+      inputElement.focus();
+    }
+
     onSendMessage(e, fontStyle);
+
+    // Re-ensure focus after send completes (for async operations)
+    requestAnimationFrame(() => {
+      if (inputElement) {
+        inputElement.focus();
+      }
+    });
   };
 
   // Show blocked user message instead of input
@@ -204,6 +223,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             value={newMessage}
             onChange={onInputChange}
             disabled={uploadingFile}
+            enterKeyHint="send"
+            autoComplete="off"
+            autoCorrect="on"
             className={`w-full py-2.5 sm:py-3 pl-3 sm:pl-4 pr-14 sm:pr-20 border border-gray-300 rounded-full focus:ring-2 focus:ring-yellow-500 disabled:opacity-50 text-black placeholder-gray-400 text-sm sm:text-base ${fontClasses}`}
           />
           <div className="absolute right-1.5 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 sm:gap-1">

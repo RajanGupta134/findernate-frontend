@@ -1,5 +1,5 @@
 import React, { useState, memo } from 'react';
-import { Check, CheckCheck, MoreVertical, Clock, AlertCircle, RotateCw } from 'lucide-react';
+import { Check, CheckCheck, MoreVertical, Clock, AlertCircle, RotateCw, Ban } from 'lucide-react';
 import { Message, Chat } from '@/api/message';
 import { MediaRenderer } from './MediaRenderer';
 import MessageMediaModal from './MessageMediaModal';
@@ -121,7 +121,12 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
         )}
 
         {msg.deletedForEveryone ? (
-          <p className="italic opacity-60">[Message deleted]</p>
+          <div className={`flex items-center gap-1.5 ${isCurrentUser ? 'text-white/70' : 'text-gray-500'}`}>
+            <Ban className="w-3.5 h-3.5" />
+            <p className="italic text-sm">
+              {isCurrentUser ? 'You deleted this message' : 'This message was deleted'}
+            </p>
+          </div>
         ) : (
           <>
             <MediaRenderer msg={msg} onMediaClick={handleMediaClick} />
@@ -220,10 +225,11 @@ export const MessageItem = memo(MessageItemComponent, (prevProps, nextProps) => 
     prevMsg._tempId === nextMsg._tempId &&
     prevMsg._sending === nextMsg._sending &&
     prevMsg._failed === nextMsg._failed &&
+    prevMsg.status === nextMsg.status &&
     prevMsg.readBy.length === nextMsg.readBy.length &&
     prevMsg.message === nextMsg.message &&
     prevMsg.deletedForEveryone === nextMsg.deletedForEveryone &&
     prevProps.isCurrentUser === nextProps.isCurrentUser &&
-    prevProps.themeColor === nextProps.themeColor  // ← ADD THIS LINE!
+    prevProps.themeColor === nextProps.themeColor
   );
 });

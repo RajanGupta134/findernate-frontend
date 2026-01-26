@@ -378,7 +378,7 @@ export const useSocket = ({
       if (data.chatId === selectedChatRef.current) {
         setMessages(prev => prev.map(msg =>
           msg._id === data.messageId
-            ? { ...msg, deletedForEveryone: true, deletedForEveryoneAt: data.deletedAt, message: '' }
+            ? { ...msg, deletedForEveryone: true, deletedForEveryoneAt: data.deletedAt }
             : msg
         ));
       }

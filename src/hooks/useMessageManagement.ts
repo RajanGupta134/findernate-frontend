@@ -437,31 +437,47 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     stopTypingIndicator();
 
     // Scroll to bottom and keep focus after DOM has updated
-    setTimeout(() => {
+    // Use requestAnimationFrame for smoother mobile keyboard handling
+    requestAnimationFrame(() => {
       scrollToBottom(true);
-      messageInputRef.current?.focus();
-    }, 0);
+      // Double RAF ensures the DOM has fully updated before refocusing
+      // This prevents keyboard flickering on mobile devices
+      requestAnimationFrame(() => {
+        messageInputRef.current?.focus();
+      });
+    });
 
     try {
-      // Send the message - let socket handle the confirmation
-      // This prevents double updates and ensures single source of truth
-      await messageAPI.sendMessage(selectedChat, messageText);
+      // Send the message - API returns the created message directly
+      const sentMessage = await messageAPI.sendMessage(selectedChat, messageText);
+
+      // Remove from pending queue since we're handling the update here
+      // This prevents the socket event from trying to match it again
+      messageQueue.remove(tempId);
+
+      // Immediately update the optimistic message with real data
+      // This provides instant feedback without waiting for socket event
+      setMessagesWithDebug(prev => prev.map(msg =>
+        msg._tempId === tempId
+          ? {
+              ...sentMessage,
+              _tempId: tempId, // Keep tempId for React key stability
+              _sending: false,
+              _failed: false
+            }
+          : msg
+      ));
 
       // Keep input focused after sending (like WhatsApp)
       messageInputRef.current?.focus();
-
-      // Socket will handle updating the optimistic message when 'new_message' event arrives
-      // This ensures messages stay visible and don't flicker
 
     } catch (error) {
       console.error('Failed to send message:', error);
 
       // Mark message as failed only if API call fails
-      setMessagesWithDebug(prev => {
-        return prev.map(msg =>
-          msg._tempId === tempId ? { ...msg, _sending: false, _failed: true } : msg
-        );
-      });
+      setMessagesWithDebug(prev => prev.map(msg =>
+        msg._tempId === tempId ? { ...msg, _sending: false, _failed: true } : msg
+      ));
     }
   };
 
@@ -524,23 +540,50 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
       if (!window.confirm('Are you sure you want to delete this message for everyone?')) return;
     }
 
+    // Close context menu immediately
+    setShowContextMenu(null);
+
+    // Optimistic update - update UI immediately before API call
+    if (deleteType === 'for_everyone') {
+      // Mark message as deleted for everyone (show "You deleted this message")
+      // Don't modify the message text - MessageItem will show the deleted UI based on the flag
+      setMessagesWithDebug(prev => prev.map(msg =>
+        msg._id === messageId
+          ? { ...msg, deletedForEveryone: true }
+          : msg
+      ));
+    } else {
+      // Remove message from UI for "delete for me"
+      setMessagesWithDebug(prev => prev.filter(msg => msg._id !== messageId));
+    }
+
     try {
       if (deleteType === 'for_everyone') {
         await messageAPI.deleteMessageForEveryone(selectedChat, messageId);
-        // Message will be updated via socket event to show "[Message deleted]"
       } else {
         await messageAPI.deleteMessageForMe(selectedChat, messageId);
-        // Message will be removed via socket event
       }
     } catch (error: any) {
       console.error('Failed to delete message:', error);
+
+      // Revert optimistic update on error
+      if (deleteType === 'for_everyone') {
+        // Revert the deletedForEveryone flag
+        setMessagesWithDebug(prev => prev.map(msg =>
+          msg._id === messageId
+            ? { ...msg, deletedForEveryone: false }
+            : msg
+        ));
+      }
+      // Note: For "delete for me", we'd need to store the original message to revert
+      // For now, user will need to refresh to see the message again if API fails
+
       if (error.response?.status === 400 && error.response?.data?.message?.includes('24 hours')) {
         alert('Cannot delete messages older than 24 hours for everyone. Use "Delete for Me" instead.');
       } else {
-        alert('Failed to delete message');
+        alert('Failed to delete message. Please try again.');
       }
     }
-    setShowContextMenu(null);
   };
 
   // Handle typing indicators with API calls
@@ -678,42 +721,8 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     };
   }, []);
 
-  // Listen for message deletion events from socket
-  useEffect(() => {
-    // Handle message deleted for everyone
-    const handleMessageDeletedForEveryone = (data: { chatId: string; messageId: string; deletedBy: any }) => {
-      if (data.chatId !== selectedChat) return;
-
-      console.log('Message deleted for everyone:', data.messageId);
-
-      // Update message to show "[Message deleted]"
-      setMessagesWithDebug(prev => prev.map(msg =>
-        msg._id === data.messageId
-          ? { ...msg, deletedForEveryone: true, message: '[Message deleted]' }
-          : msg
-      ));
-    };
-
-    // Handle message deleted for me
-    const handleMessageDeletedForMe = (data: { chatId: string; messageId: string }) => {
-      if (data.chatId !== selectedChat) return;
-
-      console.log('Message deleted for me:', data.messageId);
-
-      // Remove message from UI
-      setMessagesWithDebug(prev => prev.filter(msg => msg._id !== data.messageId));
-    };
-
-    // Register socket listeners
-    socketManager.on('message_deleted_for_everyone', handleMessageDeletedForEveryone);
-    socketManager.on('message_deleted_for_me', handleMessageDeletedForMe);
-
-    // Cleanup listeners on unmount
-    return () => {
-      socketManager.off('message_deleted_for_everyone', handleMessageDeletedForEveryone);
-      socketManager.off('message_deleted_for_me', handleMessageDeletedForMe);
-    };
-  }, [selectedChat]);
+  // Note: Socket listeners for message deletion are handled in useSocket.ts
+  // to avoid duplicate event handlers
 
   return {
     // State
