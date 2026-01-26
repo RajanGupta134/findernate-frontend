@@ -90,12 +90,12 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({
 
       // Open Razorpay payment modal
       const options = {
-        key: orderData.keyId,
+        key: orderData.razorpayKeyId,
         amount: orderData.amount,
         currency: orderData.currency,
         name: 'FinderNate',
         description: `${plan === 'small_business' ? 'Small Business' : 'Corporate'} Subscription`,
-        order_id: orderData.orderId,
+        order_id: orderData.razorpayOrderId,
         handler: async function (response: any) {
           try {
             // Verify payment

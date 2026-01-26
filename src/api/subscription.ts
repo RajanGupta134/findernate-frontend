@@ -47,10 +47,13 @@ export interface UpgradePrompt {
 }
 
 export interface CreateOrderResponse {
-  orderId: string;
+  razorpayOrderId: string;
+  razorpayKeyId: string;
   amount: number;
   currency: string;
-  keyId: string;
+  plan: SubscriptionPlan;
+  planName: string;
+  planPrice: number;
 }
 
 export interface VerifyPaymentRequest {

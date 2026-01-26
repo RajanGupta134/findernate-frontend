@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { AxiosError } from 'axios';
 import PlanSelectionModal from './business/PlanSelectionModal';
 import BusinessDetailsModal from './business/BusinessDetailsModal';
 import BusinessVerificationModal from './business/BusinessVerificationModal';
 import BankDetailsModal from './business/BankDetailsModal';
-import { PaymentMethodsModal } from './business/PaymentMethodModal';
 import FollowRequestManager from './FollowRequestManager';
 import { ChevronDown, ShoppingBag, Building2 } from 'lucide-react';
 import { UpdateBusinessCategory, UpdateBusinessSubCategory, GetBusinessCategory, switchToBusiness, switchToPersonal, toggleProductPosts, toggleServicePosts, getMyBusinessId, GetBusinessDetails } from '@/api/business';
@@ -12,6 +11,7 @@ import { useUserStore } from '@/store/useUserStore';
 import { getUserProfile } from '@/api/user';
 import { toast } from 'react-toastify';
 import { toggleServiceAutofill, toggleProductAutofill, getServicePreviousData, getProductPreviousData } from '@/api/serviceAutofill';
+import { getSubscriptionStatus, SubscriptionPlan } from '@/api/subscription';
 
 const businessCategories = [
   'Technology & Software',
@@ -40,10 +40,10 @@ export default function AccountSettings() {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [showBusinessDetailsModal, setShowBusinessDetailsModal] = useState(false);
   const [showEditBusinessDetails, setShowEditBusinessDetails] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [showBankDetailsModal, setShowBankDetailsModal] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [currentSubscription, setCurrentSubscription] = useState<SubscriptionPlan>('free');
+  const [isLoadingSubscription, setIsLoadingSubscription] = useState(false);
   const [isBusiness, setIsBusiness] = useState(false);
   const [currentCategory, setCurrentCategory] = useState('');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
@@ -316,19 +316,6 @@ export default function AccountSettings() {
     setSubCategoryMessage('');
   };
 
-  const handlePlanSelect = (plan: string) => {
-    setSelectedPlan(plan);
-    setShowPlanModal(false);
-    if (plan === "Small Business" || plan === "Corporate") {
-      setShowPaymentModal(true);
-    }
-  };
-
-  const handlePaymentModalClose = () => {
-    setShowPaymentModal(false);
-    setSelectedPlan(null);
-  };
-
   const handleBusinessDetailsSubmit = async () => {
     setShowBusinessDetailsModal(false);
     setIsBusiness(true);
@@ -524,7 +511,7 @@ export default function AccountSettings() {
 
   const handleToggleProductAutofill = async () => {
     if (togglingProductAutofill) return;
-    
+
     const previous = productAutofillEnabled;
     try {
       setTogglingProductAutofill(true);
@@ -543,8 +530,65 @@ export default function AccountSettings() {
     }
   };
 
+  // Fetch subscription status
+  const fetchSubscriptionStatus = useCallback(async () => {
+    if (!isBusiness) return;
+
+    try {
+      setIsLoadingSubscription(true);
+      const status = await getSubscriptionStatus();
+      setCurrentSubscription(status.tier || 'free');
+    } catch (error) {
+      console.error('Failed to fetch subscription status:', error);
+      setCurrentSubscription('free');
+    } finally {
+      setIsLoadingSubscription(false);
+    }
+  }, [isBusiness]);
+
+  // Fetch subscription status when business account is active
+  useEffect(() => {
+    if (isBusiness) {
+      fetchSubscriptionStatus();
+    }
+  }, [isBusiness, fetchSubscriptionStatus]);
+
+  // Listen for custom event to open upgrade plan modal
+  useEffect(() => {
+    const handleOpenUpgradeModal = () => {
+      // Expand business options if not already expanded
+      if (isBusiness) {
+        setShowBusinessOptions(true);
+        setShowPlanModal(true);
+      }
+    };
+
+    window.addEventListener('openUpgradePlanModal', handleOpenUpgradeModal);
+    return () => {
+      window.removeEventListener('openUpgradePlanModal', handleOpenUpgradeModal);
+    };
+  }, [isBusiness]);
+
+  // Handle successful upgrade
+  const handleUpgradeSuccess = () => {
+    fetchSubscriptionStatus();
+    toast.success('Subscription upgraded successfully!');
+  };
+
+  // Get display name for current subscription
+  const getSubscriptionDisplayName = (plan: SubscriptionPlan): string => {
+    switch (plan) {
+      case 'small_business':
+        return 'Small Business';
+      case 'corporate':
+        return 'Corporate';
+      default:
+        return 'Free';
+    }
+  };
+
   return (
-    <div className="w-full mx-auto p-4 sm:p-6 bg-white">
+    <div id="account-settings-section" className="w-full mx-auto p-4 sm:p-6 bg-white">
       <div className="flex items-center justify-between mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-black">Account Settings</h1>
         {isBusiness && showBusinessOptions && (
@@ -972,26 +1016,34 @@ export default function AccountSettings() {
        {/* Subscription Plan Section */}
        {isBusiness && showBusinessOptions && (
          <div className="mb-6 sm:mb-8 p-4 sm:p-6 bg-yellow-50 rounded-lg border border-yellow-100">
-                       <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  Subscription Plan
-                  <svg className="w-4 h-4 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                  </svg>
-                </h3>
-                <button
-                  onClick={() => setShowPlanModal(true)}
-                  className="px-4 sm:px-6 py-2 bg-button-gradient text-black rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base md:w-56 lg:w-56"
-                >
-                  <span className="hidden sm:inline">Manage Plan</span>
-                  <span className="sm:hidden">Manage</span>
-                </button>
-              </div>
-              <p className="text-sm sm:text-base text-gray-700">
-                Current plan: {selectedPlan || "Free"}
-              </p>
-            </div>
+           <div>
+             <div className="flex items-center justify-between mb-2">
+               <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
+                 Subscription Plan
+                 <svg className="w-4 h-4 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                   <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                 </svg>
+               </h3>
+               <button
+                 onClick={() => setShowPlanModal(true)}
+                 disabled={isLoadingSubscription}
+                 className="px-4 sm:px-6 py-2 bg-button-gradient text-black rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base md:w-56 lg:w-56 disabled:opacity-50"
+               >
+                 <span className="hidden sm:inline">Manage Plan</span>
+                 <span className="sm:hidden">Manage</span>
+               </button>
+             </div>
+             <p className="text-sm sm:text-base text-gray-700">
+               Current plan:{' '}
+               {isLoadingSubscription ? (
+                 <span className="text-gray-500">Loading...</span>
+               ) : (
+                 <span className={`font-medium ${currentSubscription !== 'free' ? 'text-yellow-600' : ''}`}>
+                   {getSubscriptionDisplayName(currentSubscription)}
+                 </span>
+               )}
+             </p>
+           </div>
          </div>
        )}
 
@@ -1006,16 +1058,10 @@ export default function AccountSettings() {
       <PlanSelectionModal
         isOpen={showPlanModal}
         onClose={() => setShowPlanModal(false)}
-        onSelectPlan={handlePlanSelect}
-        currentPlan={selectedPlan || "Free"}
+        currentPlan={currentSubscription}
+        onUpgradeSuccess={handleUpgradeSuccess}
       />
-      
-      {/* Payment Modal */}
-      <PaymentMethodsModal
-        isOpen={showPaymentModal}
-        onClose={handlePaymentModalClose}
-      />
-      
+
       {/* Business Details Modal */}
       <BusinessDetailsModal
         isOpen={showBusinessDetailsModal}

@@ -196,16 +196,30 @@ const PostPage = () => {
 
         // Check if post has upgrade message (for free business users viewing their own posts)
         if (postData.upgradeMessage && postData.isVisibleToOthers === false) {
+          const handleUpgradeClick = () => {
+            toast.dismiss('upgrade-plan-toast');
+            window.dispatchEvent(new CustomEvent('openUpgradePlanModal'));
+            // Navigate to profile page where upgrade modal is
+            window.location.href = '/profile';
+          };
+
           toast.warning(
             <div>
               <div className="font-semibold">{postData.upgradeMessage.title}</div>
               <div className="text-sm mt-1">{postData.upgradeMessage.message}</div>
+              <button
+                onClick={handleUpgradeClick}
+                className="mt-2 text-yellow-600 hover:text-yellow-700 font-medium underline text-sm"
+              >
+                Upgrade Now →
+              </button>
             </div>,
             {
+              toastId: 'upgrade-plan-toast',
               position: "top-center",
-              autoClose: 7000,
+              autoClose: 10000,
               hideProgressBar: false,
-              closeOnClick: true,
+              closeOnClick: false,
               pauseOnHover: true,
               draggable: true,
             }

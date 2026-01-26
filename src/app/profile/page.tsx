@@ -167,16 +167,35 @@ const Page = () => {
                               videosResponse.data?.upgradeMessage;
 
         if (upgradeMessage) {
+          const handleUpgradeClick = () => {
+            // Dismiss the toast first
+            toast.dismiss('upgrade-plan-toast');
+            // Dispatch custom event to open the plan modal in AccountSettings
+            window.dispatchEvent(new CustomEvent('openUpgradePlanModal'));
+            // Scroll to account settings section
+            const accountSettingsEl = document.getElementById('account-settings-section');
+            if (accountSettingsEl) {
+              accountSettingsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          };
+
           toast.warning(
             <div>
               <div className="font-semibold">{upgradeMessage.title}</div>
               <div className="text-sm mt-1">{upgradeMessage.message}</div>
+              <button
+                onClick={handleUpgradeClick}
+                className="mt-2 text-yellow-600 hover:text-yellow-700 font-medium underline text-sm"
+              >
+                Upgrade Now →
+              </button>
             </div>,
             {
+              toastId: 'upgrade-plan-toast',
               position: "top-center",
-              autoClose: 7000,
+              autoClose: 10000,
               hideProgressBar: false,
-              closeOnClick: true,
+              closeOnClick: false,
               pauseOnHover: true,
               draggable: true,
             }

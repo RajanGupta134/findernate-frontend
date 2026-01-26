@@ -1,19 +1,178 @@
-import React from "react";
+import React, { useState } from "react";
+import {
+  createSubscriptionOrder,
+  verifySubscriptionPayment,
+  SubscriptionPlan
+} from '@/api/subscription';
 
 type PlanSelectionModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onSelectPlan?: (plan: string) => void; // Optional: callback for plan selection
-  currentPlan?: string; // Optional: to highlight the current plan
+  onSelectPlan?: (plan: string) => void;
+  currentPlan?: SubscriptionPlan;
+  onUpgradeSuccess?: () => void;
+};
+
+// Helper to load Razorpay script
+const loadRazorpayScript = (): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    if (window.Razorpay) {
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Razorpay script'));
+    document.body.appendChild(script);
+  });
+};
+
+// Map display names to API plan types
+const planNameToApiPlan: Record<string, SubscriptionPlan> = {
+  'Free': 'free',
+  'Small Business': 'small_business',
+  'Corporate': 'corporate'
+};
+
+// Map API plan types to display names
+const apiPlanToDisplayName: Record<SubscriptionPlan, string> = {
+  'free': 'Free',
+  'small_business': 'Small Business',
+  'corporate': 'Corporate'
 };
 
 const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
   isOpen,
   onClose,
   onSelectPlan,
-  currentPlan = "Free",
+  currentPlan = 'free',
+  onUpgradeSuccess,
 }) => {
+  const [processing, setProcessing] = useState(false);
+  const [processingPlan, setProcessingPlan] = useState<string | null>(null);
+
   if (!isOpen) return null;
+
+  // Get display name for current plan
+  const currentPlanDisplay = apiPlanToDisplayName[currentPlan] || 'Free';
+
+  const handleUpgrade = async (planDisplayName: string) => {
+    const plan = planNameToApiPlan[planDisplayName];
+
+    // If selecting free plan, just call onSelectPlan
+    if (plan === 'free') {
+      onSelectPlan?.(planDisplayName);
+      return;
+    }
+
+    setProcessing(true);
+    setProcessingPlan(planDisplayName);
+
+    try {
+      // 1. Create order via API
+      const orderData = await createSubscriptionOrder(plan);
+
+      // 2. Load Razorpay script if needed
+      await loadRazorpayScript();
+
+      // 3. Open Razorpay checkout modal
+      const options: RazorpayOptions = {
+        key: orderData.razorpayKeyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'FinderNate',
+        description: `${planDisplayName} Subscription`,
+        order_id: orderData.razorpayOrderId,
+        handler: async (response: RazorpayResponse) => {
+          try {
+            // 4. Verify payment
+            await verifySubscriptionPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              plan
+            });
+
+            // 5. Success - notify parent and close
+            onSelectPlan?.(planDisplayName);
+            onUpgradeSuccess?.();
+            onClose();
+          } catch (error) {
+            console.error('Payment verification failed:', error);
+            alert('Payment verification failed. Please contact support.');
+          }
+        },
+        prefill: {
+          name: '',
+          email: '',
+          contact: ''
+        },
+        theme: {
+          color: '#F59E0B'
+        },
+        modal: {
+          ondismiss: () => {
+            setProcessing(false);
+            setProcessingPlan(null);
+          }
+        }
+      };
+
+      const razorpay = new window.Razorpay!(options);
+      razorpay.open();
+    } catch (error) {
+      console.error('Failed to create order:', error);
+      alert('Failed to initiate payment. Please try again.');
+      setProcessing(false);
+      setProcessingPlan(null);
+    }
+  };
+
+  const renderButton = (planName: string, isFree: boolean = false) => {
+    const isCurrentPlan = currentPlanDisplay === planName;
+    const isProcessingThis = processingPlan === planName;
+
+    if (isCurrentPlan) {
+      return (
+        <button
+          className="w-full bg-gray-200 text-gray-700 px-3 sm:px-4 py-2 rounded-lg cursor-default text-sm sm:text-base"
+          disabled
+        >
+          Current Plan
+        </button>
+      );
+    }
+
+    if (isFree) {
+      return (
+        <button
+          className="w-full bg-gray-200 text-gray-700 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-300 text-sm sm:text-base"
+          onClick={() => onSelectPlan?.('Free')}
+        >
+          Choose Free
+        </button>
+      );
+    }
+
+    return (
+      <button
+        className="w-full bg-yellow-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-yellow-700 text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        disabled={processing}
+        onClick={() => handleUpgrade(planName)}
+      >
+        {isProcessingThis ? (
+          <>
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span>Processing...</span>
+          </>
+        ) : (
+          'Upgrade Now'
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
@@ -22,6 +181,7 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
           <button
             className="absolute top-2 right-2 sm:top-4 sm:right-4 text-gray-500 hover:text-gray-800 z-10"
             onClick={onClose}
+            disabled={processing}
           >
             <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -55,13 +215,7 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
                   <span>Community support</span>
                 </li>
               </ul>
-              <button
-                className="w-full bg-gray-200 text-gray-700 px-3 sm:px-4 py-2 rounded-lg cursor-default text-sm sm:text-base"
-                disabled={currentPlan === "Free"}
-                onClick={() => onSelectPlan && onSelectPlan("Free")}
-              >
-                {currentPlan === "Free" ? "Current Plan" : "Choose Free"}
-              </button>
+              {renderButton('Free', true)}
             </div>
 
             {/* Small Business Plan */}
@@ -98,13 +252,7 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
                   <span>Basic advertising tools</span>
                 </li>
               </ul>
-              <button
-                className="w-full bg-yellow-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-yellow-700 text-sm sm:text-base"
-                disabled={currentPlan === "Small Business"}
-                onClick={() => onSelectPlan && onSelectPlan("Small Business")}
-              >
-                {currentPlan === "Small Business" ? "Current Plan" : "Upgrade Now"}
-              </button>
+              {renderButton('Small Business')}
             </div>
 
             {/* Corporate Plan */}
@@ -146,13 +294,7 @@ const PlanSelectionModal: React.FC<PlanSelectionModalProps> = ({
                   <span>White-label options</span>
                 </li>
               </ul>
-              <button
-                className="w-full bg-yellow-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-yellow-700 text-sm sm:text-base"
-                disabled={currentPlan === "Corporate"}
-                onClick={() => onSelectPlan && onSelectPlan("Corporate")}
-              >
-                {currentPlan === "Corporate" ? "Current Plan" : "Upgrade Now"}
-              </button>
+              {renderButton('Corporate')}
             </div>
           </div>
         </div>
