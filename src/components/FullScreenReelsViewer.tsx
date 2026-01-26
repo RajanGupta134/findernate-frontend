@@ -271,6 +271,18 @@ const FullScreenReelsViewer: React.FC<FullScreenReelsViewerProps> = ({ initialRe
   }, [currentIndex, reelsData, isMuted]);
 
   // ============================================================
+  // CLOSE MENUS WHEN SWITCHING VIDEOS
+  // ============================================================
+
+  useEffect(() => {
+    // Close all menus when switching to a different video
+    setShowComments(false);
+    setShowShareModal(false);
+    setShowReportModal(false);
+    setShowMoreMenu(false);
+  }, [currentIndex]);
+
+  // ============================================================
   // SCROLL HANDLING & URL SYNC
   // ============================================================
 
@@ -594,6 +606,7 @@ const FullScreenReelsViewer: React.FC<FullScreenReelsViewerProps> = ({ initialRe
               loop
               playsInline
               muted={isMuted}
+              autoPlay={index === currentIndex}
             />
 
             {/* Gradient Overlays for better text readability */}

@@ -311,6 +311,16 @@ const Page = () => {
     setTimeout(() => setShowToast(false), 3000);
   };
 
+  // Close all menus/modals when switching to a different reel
+  useEffect(() => {
+    setShowDropdown(false);
+    setShowComments(false);
+    setShowShareModal(false);
+    setShowMoreModal(false);
+    setShowReportModal(false);
+    setShowBlockModal(false);
+  }, [currentReelIndex]);
+
   const updateReelInState = (reelId: string, updates: any) => {
     setReelsData(prevData => 
       prevData.map(reel => 
@@ -949,8 +959,8 @@ const Page = () => {
         )}
 
         {/* Mobile Reels Component */}
-        <ReelsComponent 
-          onReelChange={setCurrentReelIndex} 
+        <ReelsComponent
+          onReelChange={setCurrentReelIndex}
           apiReelsData={reelsData}
           onLikeToggle={handleLikeToggle}
           onCommentClick={() => {
@@ -969,6 +979,7 @@ const Page = () => {
           username={currentModalData.username || 'Unknown User'}
           description={currentModalData.description || ''}
           hashtags={currentModalData.hashtags || []}
+          profileImageUrl={currentModalData.profileImageUrl || currentModalData.userId?.profileImageUrl || '/placeholderimg.png'}
           onProfileClick={handleProfileClick}
           onTagClick={handleTagClick}
         />
@@ -1147,6 +1158,7 @@ const Page = () => {
             apiReelsData={reelsData}
             isMobile={false}
             currentIndex={currentReelIndex}
+            onProfileClick={handleProfileClick}
           />
         </div>
 

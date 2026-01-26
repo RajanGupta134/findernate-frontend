@@ -253,6 +253,23 @@ const ReelsComponent: React.FC<ReelsComponentProps> = memo(({
     });
   }, [currentIndex, isPlaying]);
 
+  // Auto-play current video when reels data loads or index changes
+  useEffect(() => {
+    if (reels.length > 0) {
+      const currentVideo = videoRefs.current[currentIndex];
+      if (currentVideo) {
+        // Ensure video is muted (required for autoplay in most browsers)
+        currentVideo.muted = true;
+        // Small delay to ensure video element is ready
+        const playTimeout = setTimeout(() => {
+          safePlay(currentVideo, currentIndex);
+          setIsPlaying(true);
+        }, 150);
+        return () => clearTimeout(playTimeout);
+      }
+    }
+  }, [reels.length, currentIndex]);
+
   // Handle mute/unmute
   useEffect(() => {
     const currentVideo = videoRefs.current[currentIndex];
@@ -378,6 +395,11 @@ const ReelsComponent: React.FC<ReelsComponentProps> = memo(({
     }
   }, [externalIndex, currentIndex, scrollToReel]);
 
+  // Close menu when switching videos
+  useEffect(() => {
+    setShowMoreLocal(false);
+  }, [currentIndex]);
+
   const containerClasses = isMobile
     ? "relative w-screen h-screen mx-auto flex-shrink-0"
     : "relative w-96 mx-auto aspect-[9/16] flex-shrink-0";
@@ -437,8 +459,17 @@ const ReelsComponent: React.FC<ReelsComponentProps> = memo(({
               poster={reel.thumbnail}
               loop
               playsInline
-              muted={isMuted}
+              muted
               autoPlay={index === currentIndex}
+              onLoadedData={(e) => {
+                // Auto-play when video data is loaded and this is the current video
+                if (index === currentIndex) {
+                  const video = e.currentTarget;
+                  video.muted = true;
+                  video.play().catch(() => {});
+                  setIsPlaying(true);
+                }
+              }}
               onClick={() => {
                 const video = videoRefs.current[index];
                 if (video) {
@@ -569,29 +600,34 @@ const ReelsComponent: React.FC<ReelsComponentProps> = memo(({
                     className="cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (onProfileClick && username) onProfileClick(username);
+                      const currentReelData = apiReelsData?.[index];
+                      const currentUsername = currentReelData?.username || currentReelData?.userId?.username || username;
+                      if (onProfileClick && currentUsername) onProfileClick(currentUsername);
                     }}
                   >
                     <Image
-                      src={profileImageUrl || '/placeholderimg.png'}
-                      alt={username || 'User'}
+                      src={apiReelsData?.[index]?.profileImageUrl || apiReelsData?.[index]?.userId?.profileImageUrl || profileImageUrl || '/placeholderimg.png'}
+                      alt={apiReelsData?.[index]?.username || username || 'User'}
                       width={36}
                       height={36}
                       className="w-9 h-9 rounded-full object-cover border border-white/30"
+                      unoptimized
                     />
                   </div>
                   <button
                     className="text-white font-semibold"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (onProfileClick && username) onProfileClick(username);
+                      const currentReelData = apiReelsData?.[index];
+                      const currentUsername = currentReelData?.username || currentReelData?.userId?.username || username;
+                      if (onProfileClick && currentUsername) onProfileClick(currentUsername);
                     }}
                   >
-                    @{username || 'Unknown User'}
-                    {review && (
+                    @{apiReelsData?.[index]?.username || apiReelsData?.[index]?.userId?.username || username || 'Unknown User'}
+                    {(apiReelsData?.[index]?.userId?.review || review) && (
                       <div className="ml-2 inline-flex">
                         <StarRating
-                          currentRating={review.averageRating}
+                          currentRating={apiReelsData?.[index]?.userId?.review?.averageRating || review?.averageRating || 0}
                           readonly={true}
                           size="sm"
                         />
@@ -599,26 +635,67 @@ const ReelsComponent: React.FC<ReelsComponentProps> = memo(({
                     )}
                   </button>
                 </div>
-                {description && (
-                  <p className="text-sm leading-snug mb-1 line-clamp-2">{description}</p>
+                {(apiReelsData?.[index]?.description || description) && (
+                  <p className="text-sm leading-snug mb-1 line-clamp-2">{apiReelsData?.[index]?.description || description}</p>
                 )}
-                {Array.isArray(hashtags) && hashtags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    {hashtags.slice(0, 4).map((tag, idx) => (
-                      onTagClick ? (
-                        <button
-                          key={idx}
-                          onClick={(e) => onTagClick(tag, e)}
-                          className="text-yellow-300 hover:text-yellow-100 transition-colors cursor-pointer"
-                        >
-                          #{tag}
-                        </button>
-                      ) : (
-                        <span key={idx} className="text-yellow-300">#{tag}</span>
-                      )
-                    ))}
+                {(() => {
+                  const currentHashtags = apiReelsData?.[index]?.hashtags || hashtags;
+                  return Array.isArray(currentHashtags) && currentHashtags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {currentHashtags.slice(0, 4).map((tag: string, idx: number) => (
+                        onTagClick ? (
+                          <button
+                            key={idx}
+                            onClick={(e) => onTagClick(tag, e)}
+                            className="text-yellow-300 hover:text-yellow-100 transition-colors cursor-pointer"
+                          >
+                            #{tag}
+                          </button>
+                        ) : (
+                          <span key={idx} className="text-yellow-300">#{tag}</span>
+                        )
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Desktop footer: profile picture + username */}
+            {!isMobile && (
+              <div className="absolute left-4 bottom-6 z-10 text-white">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const currentReelData = apiReelsData?.[index];
+                      const currentUsername = currentReelData?.username || currentReelData?.userId?.username;
+                      if (onProfileClick && currentUsername) onProfileClick(currentUsername);
+                    }}
+                  >
+                    <Image
+                      src={apiReelsData?.[index]?.profileImageUrl || apiReelsData?.[index]?.userId?.profileImageUrl || '/placeholderimg.png'}
+                      alt={apiReelsData?.[index]?.username || 'User'}
+                      width={40}
+                      height={40}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-white/50"
+                      unoptimized
+                    />
                   </div>
-                )}
+                  <span
+                    className="font-semibold text-sm cursor-pointer hover:underline drop-shadow-lg"
+                    style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const currentReelData = apiReelsData?.[index];
+                      const currentUsername = currentReelData?.username || currentReelData?.userId?.username;
+                      if (onProfileClick && currentUsername) onProfileClick(currentUsername);
+                    }}
+                  >
+                    @{apiReelsData?.[index]?.username || apiReelsData?.[index]?.userId?.username || 'Unknown User'}
+                  </span>
+                </div>
               </div>
             )}
           </div>
