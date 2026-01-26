@@ -6,6 +6,7 @@ import socketManager from '@/utils/socket';
 import { requestChatCache } from '@/utils/requestChatCache';
 import { refreshUnreadCounts } from '@/hooks/useUnreadCounts';
 import { messageQueue } from '@/utils/messageQueue';
+import { deletedMessagesCache } from '@/utils/deletedMessagesCache';
 
 // Extended Message type for optimistic updates
 interface OptimisticMessage extends Message {
@@ -375,6 +376,9 @@ export const useSocket = ({
     };
 
     const handleMessageDeletedForEveryone = (data: { chatId: string; messageId: string; deletedBy: any; deletedAt: string }) => {
+      // Store in the shared cache to persist across refetches
+      deletedMessagesCache.markDeleted(data.messageId, data.deletedAt);
+
       if (data.chatId === selectedChatRef.current) {
         setMessages(prev => prev.map(msg =>
           msg._id === data.messageId

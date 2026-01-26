@@ -1,8 +1,9 @@
-import React, { useState, useRef, useCallback, memo } from 'react';
+import React, { useState, useRef, useCallback, memo, useMemo } from 'react';
 import { Check, CheckCheck, MoreVertical, Clock, AlertCircle, RotateCw, Ban } from 'lucide-react';
 import { Message, Chat } from '@/api/message';
 import { MediaRenderer } from './MediaRenderer';
 import MessageMediaModal from './MessageMediaModal';
+import { deletedMessagesCache } from '@/utils/deletedMessagesCache';
 
 interface OptimisticMessage extends Message {
   _tempId?: string;
@@ -33,13 +34,21 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [isLongPressing, setIsLongPressing] = useState(false);
 
+  // Check if message is deleted - use prop OR check localStorage cache as fallback
+  // This ensures deleted messages stay deleted even if the state wasn't properly propagated
+  const isDeletedForEveryone = useMemo(() => {
+    if (msg.deletedForEveryone) return true;
+    // Fallback: check the localStorage cache
+    return deletedMessagesCache.isDeleted(msg._id);
+  }, [msg._id, msg.deletedForEveryone]);
+
   // Long press handling for mobile
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
   // Handle touch start for long press
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isCurrentUser || msg.deletedForEveryone) return;
+    if (!isCurrentUser || isDeletedForEveryone) return;
 
     const touch = e.touches[0];
     touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
@@ -55,7 +64,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
         navigator.vibrate(50);
       }
     }, 1000); // 1 second hold
-  }, [isCurrentUser, msg._id, msg.timestamp, msg.deletedForEveryone, onContextMenu]);
+  }, [isCurrentUser, msg._id, msg.timestamp, isDeletedForEveryone, onContextMenu]);
 
   // Handle touch move - cancel long press if finger moves too much
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
@@ -85,12 +94,12 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
 
   // Handle right-click for desktop
   const handleRightClick = useCallback((e: React.MouseEvent) => {
-    if (!isCurrentUser || msg.deletedForEveryone) return;
+    if (!isCurrentUser || isDeletedForEveryone) return;
 
     e.preventDefault();
     e.stopPropagation();
     onContextMenu(msg._id, e.clientX, e.clientY, msg.timestamp);
-  }, [isCurrentUser, msg._id, msg.timestamp, msg.deletedForEveryone, onContextMenu]);
+  }, [isCurrentUser, msg._id, msg.timestamp, isDeletedForEveryone, onContextMenu]);
 
   // Default color if no theme color is set
   const defaultColor = '#DBB42C';
@@ -187,7 +196,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
           </p>
         )}
 
-        {msg.deletedForEveryone ? (
+        {isDeletedForEveryone ? (
           <div className={`flex items-center gap-1.5 ${isCurrentUser ? 'text-white/70' : 'text-gray-500'}`}>
             <Ban className="w-3.5 h-3.5" />
             <p className="italic text-sm">

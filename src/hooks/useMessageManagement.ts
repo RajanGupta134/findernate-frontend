@@ -6,6 +6,7 @@ import socketManager from '@/utils/socket';
 import { requestChatCache } from '@/utils/requestChatCache';
 import { refreshUnreadCounts } from '@/hooks/useUnreadCounts';
 import { messageQueue } from '@/utils/messageQueue';
+import { deletedMessagesCache } from '@/utils/deletedMessagesCache';
 
 interface UseMessageManagementProps {
   selectedChat: string | null;
@@ -89,6 +90,13 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     if (shouldScroll) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
+  };
+
+  // Helper to apply stored deleted state to messages
+  // This ensures deleted messages stay deleted even after refetch
+  // Uses the shared deletedMessagesCache utility
+  const applyDeletedState = (msgs: Message[]): OptimisticMessage[] => {
+    return deletedMessagesCache.applyToMessages(msgs);
   };
 
   // Track scroll position to determine if user is near bottom
@@ -211,7 +219,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
             //console.log('Messages loaded for request chat:', chatId, 'Count:', response.messages?.length || 0);
 
             if (response.messages && response.messages.length > 0) {
-              setMessagesWithDebug(response.messages);
+              setMessagesWithDebug(applyDeletedState(response.messages));
               setLoadingMessages(false);
               //console.log('Successfully loaded', response.messages.length, 'messages for request chat');
             } else {
@@ -224,7 +232,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
               if (cachedMessages.length > 0) {
                 //console.log('Found', cachedMessages.length, 'cached messages for request chat');
                 if (currentChatRef.current === chatId) {
-                  setMessagesWithDebug(cachedMessages);
+                  setMessagesWithDebug(applyDeletedState(cachedMessages));
                   setLoadingMessages(false);
                 }
               } else if (requestChat && requestChat.lastMessage && requestChat.lastMessage.message) {
@@ -240,7 +248,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
                 // Now get the cached messages (which should include the lastMessage we just cached)
                 const updatedCachedMessages = requestChatCache.getMessages(chatId);
                 if (currentChatRef.current === chatId) {
-                  setMessagesWithDebug(updatedCachedMessages);
+                  setMessagesWithDebug(applyDeletedState(updatedCachedMessages));
                   setLoadingMessages(false);
                 }
                 //console.log('Cached and displaying lastMessage, total messages:', updatedCachedMessages.length);
@@ -271,7 +279,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
                 if (currentChatRef.current !== chatId) return;
 
                 //console.log('Messages loaded as regular chat for sender:', regularResponse.messages.length);
-                setMessagesWithDebug(regularResponse.messages || []);
+                setMessagesWithDebug(applyDeletedState(regularResponse.messages || []));
                 setLoadingMessages(false);
                 setIsRequestChat(false); // Allow sender to continue messaging
               } catch (regularError) {
@@ -303,7 +311,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
 
           //console.log('Loaded messages for regular chat:', chatId, 'count:', response.messages.length);
 
-          setMessagesWithDebug(response.messages);
+          setMessagesWithDebug(applyDeletedState(response.messages));
           setLoadingMessages(false);
         }
 
@@ -545,11 +553,15 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
 
     // Optimistic update - update UI immediately before API call
     if (deleteType === 'for_everyone') {
+      // Store the deleted state to persist across refetches (uses shared cache)
+      const deletedAt = new Date().toISOString();
+      deletedMessagesCache.markDeleted(messageId, deletedAt);
+
       // Mark message as deleted for everyone (show "You deleted this message")
       // Don't modify the message text - MessageItem will show the deleted UI based on the flag
       setMessagesWithDebug(prev => prev.map(msg =>
         msg._id === messageId
-          ? { ...msg, deletedForEveryone: true }
+          ? { ...msg, deletedForEveryone: true, deletedForEveryoneAt: deletedAt }
           : msg
       ));
     } else {
@@ -568,10 +580,13 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
 
       // Revert optimistic update on error
       if (deleteType === 'for_everyone') {
+        // Remove from the stored deleted messages (uses shared cache)
+        deletedMessagesCache.removeDeleted(messageId);
+
         // Revert the deletedForEveryone flag
         setMessagesWithDebug(prev => prev.map(msg =>
           msg._id === messageId
-            ? { ...msg, deletedForEveryone: false }
+            ? { ...msg, deletedForEveryone: false, deletedForEveryoneAt: undefined }
             : msg
         ));
       }

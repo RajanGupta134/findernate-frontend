@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Chat, Message } from '@/api/message';
 import { ChatHeader } from './ChatHeader';
 import { MessageItem } from './MessageItem';
@@ -166,8 +166,66 @@ export const RightPanel: React.FC<RightPanelProps> = ({
     }
   };
 
+  // Visual viewport handling for mobile keyboard
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
+
+  // Handle visual viewport changes for mobile keyboard
+  useEffect(() => {
+    // Check if we're on mobile and visualViewport is available
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const viewport = window.visualViewport;
+    let initialHeight = viewport.height;
+
+    const handleViewportResize = () => {
+      const currentHeight = viewport.height;
+      const heightDiff = initialHeight - currentHeight;
+
+      // Keyboard is considered visible if viewport shrunk by more than 150px
+      const isKeyboardOpen = heightDiff > 150;
+
+      setKeyboardVisible(isKeyboardOpen);
+      setViewportHeight(currentHeight);
+
+      // Scroll messages to bottom when keyboard opens
+      if (isKeyboardOpen && messagesEndRef.current) {
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        });
+      }
+    };
+
+    const handleScroll = () => {
+      // Update position on scroll to keep input fixed relative to visual viewport
+      if (inputContainerRef.current && keyboardVisible) {
+        const offsetTop = viewport.offsetTop;
+        inputContainerRef.current.style.transform = `translateY(${offsetTop}px)`;
+      }
+    };
+
+    viewport.addEventListener('resize', handleViewportResize);
+    viewport.addEventListener('scroll', handleScroll);
+
+    // Initial setup
+    handleViewportResize();
+
+    return () => {
+      viewport.removeEventListener('resize', handleViewportResize);
+      viewport.removeEventListener('scroll', handleScroll);
+    };
+  }, [keyboardVisible]);
+
+  // Scroll to bottom callback for message input
+  const scrollToBottomOnSend = useCallback(() => {
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }, []);
+
   return (
-    <div className="flex flex-col w-full h-full">
+    <div className="flex flex-col w-full h-full relative" style={{ height: '100dvh' }}>
       <ChatHeader
         selected={{ ...selected, themeColor: currentThemeColor }}
         typingUsers={typingUsers}
@@ -187,7 +245,14 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         onThemeChange={handleThemeChange}
       />
 
-      <div ref={messagesContainerRef} className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50 pt-20 sm:pt-6 pb-36 sm:pb-32 scroll-smooth">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50 pt-20 sm:pt-6 scroll-smooth"
+        style={{
+          paddingBottom: keyboardVisible ? '80px' : 'max(144px, calc(env(safe-area-inset-bottom) + 120px))',
+          transition: 'padding-bottom 0.1s ease-out'
+        }}
+      >
         {messages.length === 0 ? (
           <div className="flex justify-center items-center h-full">
             <div className="text-center">
@@ -231,46 +296,62 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {isRequestChat ? (
-        <div className="p-4 border-t bg-orange-50 border-orange-200">
-          <div className="flex items-center justify-center">
-            <div className="bg-orange-100 border border-orange-300 rounded-lg p-3 text-center">
-              <p className="text-orange-800 font-medium text-sm">
-                📩 This is a message request. Accept or decline to continue.
-              </p>
-              <p className="text-orange-600 text-xs mt-1">
-                You can read the messages above, but cannot reply until you accept the request.
-              </p>
+      {/* Fixed input container for mobile - stays above keyboard */}
+      <div
+        ref={inputContainerRef}
+        className="fixed sm:relative bottom-0 left-0 right-0 sm:bottom-auto sm:left-auto sm:right-auto z-50 bg-white"
+        style={{
+          // On mobile, position fixed at visual viewport bottom
+          bottom: keyboardVisible && viewportHeight
+            ? `calc(100vh - ${viewportHeight}px)`
+            : 0,
+          transition: keyboardVisible ? 'none' : 'bottom 0.15s ease-out',
+          willChange: 'bottom',
+        }}
+      >
+        {isRequestChat ? (
+          <div className="p-4 border-t bg-orange-50 border-orange-200">
+            <div className="flex items-center justify-center">
+              <div className="bg-orange-100 border border-orange-300 rounded-lg p-3 text-center">
+                <p className="text-orange-800 font-medium text-sm">
+                  📩 This is a message request. Accept or decline to continue.
+                </p>
+                <p className="text-orange-600 text-xs mt-1">
+                  You can read the messages above, but cannot reply until you accept the request.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      ) : (
-        <MessageInput
-          newMessage={newMessage}
-          setNewMessage={setNewMessage}
-          onSendMessage={onSendMessage}
-          onInputChange={onInputChange}
-          onFileSelect={onFileSelect}
-          onFileUpload={onFileUpload}
-          onRemoveFile={onRemoveFile}
-          onEmojiClick={onEmojiClick}
-          onEmojiSelect={onEmojiSelect}
-          sendingMessage={sendingMessage}
-          uploadingFile={uploadingFile}
-          selectedFile={selectedFile}
-          filePreview={filePreview}
-          showEmojiPicker={showEmojiPicker}
-          emojiPickerRef={emojiPickerRef}
-          messageInputRef={messageInputRef}
-          fileInputRef={fileInputRef}
-          isBlocked={!!blockedUserInfo}
-          blockedUserInfo={blockedUserInfo ? {
-            username: blockedUserInfo.username,
-            onUnblock: handleUnblock,
-            isUnblocking: isUnblocking
-          } : undefined}
-        />
-      )}
+        ) : (
+          <MessageInput
+            newMessage={newMessage}
+            setNewMessage={setNewMessage}
+            onSendMessage={onSendMessage}
+            onInputChange={onInputChange}
+            onFileSelect={onFileSelect}
+            onFileUpload={onFileUpload}
+            onRemoveFile={onRemoveFile}
+            onEmojiClick={onEmojiClick}
+            onEmojiSelect={onEmojiSelect}
+            sendingMessage={sendingMessage}
+            uploadingFile={uploadingFile}
+            selectedFile={selectedFile}
+            filePreview={filePreview}
+            showEmojiPicker={showEmojiPicker}
+            emojiPickerRef={emojiPickerRef}
+            messageInputRef={messageInputRef}
+            fileInputRef={fileInputRef}
+            isBlocked={!!blockedUserInfo}
+            blockedUserInfo={blockedUserInfo ? {
+              username: blockedUserInfo.username,
+              onUnblock: handleUnblock,
+              isUnblocking: isUnblocking
+            } : undefined}
+            keyboardVisible={keyboardVisible}
+            onScrollToBottom={scrollToBottomOnSend}
+          />
+        )}
+      </div>
     </div>
   );
 };

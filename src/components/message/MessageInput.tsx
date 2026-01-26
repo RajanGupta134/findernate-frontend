@@ -54,6 +54,8 @@ interface MessageInputProps {
     onUnblock: () => void;
     isUnblocking?: boolean;
   };
+  keyboardVisible?: boolean;
+  onScrollToBottom?: () => void;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -75,7 +77,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   messageInputRef,
   fileInputRef,
   isBlocked = false,
-  blockedUserInfo
+  blockedUserInfo,
+  keyboardVisible = false,
+  onScrollToBottom
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const fontDropdownRef = useRef<HTMLDivElement>(null);
@@ -117,6 +121,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       if (inputElement) {
         inputElement.focus();
       }
+      // Scroll to bottom after sending
+      onScrollToBottom?.();
     });
   };
 
@@ -160,7 +166,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const fontClasses = getFontClasses(fontStyle);
 
   return (
-    <div ref={containerRef} className="pl-17 pr-2 py-5 sm:px-4 sm:pb-4 border-t border-gray-200 bg-white relative" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+    <div
+      ref={containerRef}
+      className="pl-4 pr-2 py-3 sm:px-4 sm:pb-4 border-t border-gray-200 bg-white relative"
+      style={{
+        paddingBottom: keyboardVisible ? '0.75rem' : 'max(0.75rem, env(safe-area-inset-bottom))',
+        transition: 'padding-bottom 0.1s ease-out'
+      }}
+    >
       {selectedFile && (
         <div className="mb-2 sm:mb-3 p-2 sm:p-3 bg-gray-50 rounded-lg border">
           <div className="flex items-center justify-between">
