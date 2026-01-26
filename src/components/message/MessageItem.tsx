@@ -1,4 +1,4 @@
-import React, { useState, memo } from 'react';
+import React, { useState, useRef, useCallback, memo } from 'react';
 import { Check, CheckCheck, MoreVertical, Clock, AlertCircle, RotateCw, Ban } from 'lucide-react';
 import { Message, Chat } from '@/api/message';
 import { MediaRenderer } from './MediaRenderer';
@@ -31,6 +31,66 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   themeColor
 }) => {
   const [showMediaModal, setShowMediaModal] = useState(false);
+  const [isLongPressing, setIsLongPressing] = useState(false);
+
+  // Long press handling for mobile
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Handle touch start for long press
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isCurrentUser || msg.deletedForEveryone) return;
+
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+    longPressTimerRef.current = setTimeout(() => {
+      setIsLongPressing(true);
+      // Trigger context menu at touch position
+      if (touchStartPosRef.current) {
+        onContextMenu(msg._id, touchStartPosRef.current.x, touchStartPosRef.current.y, msg.timestamp);
+      }
+      // Vibrate for haptic feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 1000); // 1 second hold
+  }, [isCurrentUser, msg._id, msg.timestamp, msg.deletedForEveryone, onContextMenu]);
+
+  // Handle touch move - cancel long press if finger moves too much
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartPosRef.current || !longPressTimerRef.current) return;
+
+    const touch = e.touches[0];
+    const deltaX = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const deltaY = Math.abs(touch.clientY - touchStartPosRef.current.y);
+
+    // Cancel if moved more than 10 pixels
+    if (deltaX > 10 || deltaY > 10) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+      touchStartPosRef.current = null;
+    }
+  }, []);
+
+  // Handle touch end - cancel long press timer
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    touchStartPosRef.current = null;
+    setIsLongPressing(false);
+  }, []);
+
+  // Handle right-click for desktop
+  const handleRightClick = useCallback((e: React.MouseEvent) => {
+    if (!isCurrentUser || msg.deletedForEveryone) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    onContextMenu(msg._id, e.clientX, e.clientY, msg.timestamp);
+  }, [isCurrentUser, msg._id, msg.timestamp, msg.deletedForEveryone, onContextMenu]);
 
   // Default color if no theme color is set
   const defaultColor = '#DBB42C';
@@ -106,13 +166,20 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
           isCurrentUser
             ? "text-white"
             : "bg-gray-100 text-gray-900"
-        } ${msg._sending ? 'opacity-90' : 'opacity-100'}`}
+        } ${msg._sending ? 'opacity-90' : 'opacity-100'} ${isLongPressing ? 'scale-[0.98] opacity-80' : ''}`}
         style={{
           wordWrap: 'break-word',
           overflowWrap: 'break-word',
           transition: 'opacity 300ms cubic-bezier(0.4, 0, 0.2, 1), transform 200ms ease-out',
-          backgroundColor: isCurrentUser ? bubbleColor : undefined
+          backgroundColor: isCurrentUser ? bubbleColor : undefined,
+          userSelect: 'none', // Prevent text selection on long press
+          WebkitUserSelect: 'none',
         }}
+        onContextMenu={handleRightClick}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
       >
         {(!isCurrentUser || selected?.chatType === 'group') && (
           <p className="text-xs font-medium mb-1 opacity-80">

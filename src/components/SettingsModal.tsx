@@ -350,7 +350,6 @@ const SettingsModal = ({ onClose }: { onClose: () => void }) => {
       isOpen={showBusinessPlans}
       onClose={() => setShowBusinessPlans(false)}
       onSelectPlan={handlePlanSelect}
-      currentPlan={selectedPlan || "Free"}
     />
     
     {/* Payment Modal */}

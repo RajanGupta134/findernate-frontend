@@ -86,7 +86,7 @@ const SubscriptionSettings: React.FC = () => {
         }
       };
 
-      const razorpay = new window.Razorpay(options);
+      const razorpay = new window.Razorpay!(options);
       razorpay.open();
     } catch (error) {
       console.error('Failed to create order:', error);

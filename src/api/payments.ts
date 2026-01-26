@@ -225,14 +225,7 @@ export interface RazorpayResponse {
   razorpay_signature: string;
 }
 
-declare global {
-  interface Window {
-    Razorpay: new (options: RazorpayOptions) => {
-      open: () => void;
-      close: () => void;
-    };
-  }
-}
+// Window.Razorpay type is declared in src/types/razorpay.d.ts
 
 /**
  * Load Razorpay script dynamically
