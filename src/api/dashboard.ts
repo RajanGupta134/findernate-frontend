@@ -79,7 +79,7 @@ class DashboardAPI {
   async getDashboardStats(): Promise<DashboardResponse> {
     try {
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/admin/dashboard/stats`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/admin/dashboard/stats`,
         {
           headers: this.getAuthHeaders(),
           withCredentials: true,
@@ -95,7 +95,7 @@ class DashboardAPI {
   async getEscrowDashboard(): Promise<EscrowDashboardResponse> {
     try {
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/admin/escrow/dashboard`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/admin/escrow/dashboard`,
         {
           headers: this.getAuthHeaders(),
           withCredentials: true,
