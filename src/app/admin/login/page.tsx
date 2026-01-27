@@ -43,7 +43,7 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-    
+
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/admin/login`, {
         method: 'POST',
@@ -54,6 +54,12 @@ export default function AdminLoginPage() {
         credentials: 'include'
       });
 
+      // Check content type before parsing JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server error: Unable to connect to the API. Please try again later.');
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
@@ -62,20 +68,20 @@ export default function AdminLoginPage() {
 
       if (data.success && data.data) {
         const { admin, accessToken, refreshToken } = data.data;
-        
+
         // Store tokens in localStorage
         localStorage.setItem('adminAccessToken', accessToken);
         localStorage.setItem('adminRefreshToken', refreshToken);
         localStorage.setItem('adminUser', JSON.stringify(admin));
-        
+
         // Update store with user data
         setUser(admin);
-        
+
         router.push('/admin/dashboard');
       } else {
         throw new Error(data.message || 'Invalid response from server');
       }
-      
+
     } catch (err: any) {
       setError(err.message || 'Login failed. Please try again.');
     } finally {
