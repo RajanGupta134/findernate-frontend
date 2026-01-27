@@ -67,7 +67,7 @@ class AdminOrdersAPI {
 
   // Get escrow dashboard
   async getEscrowDashboard(): Promise<EscrowDashboard> {
-    const response = await axios.get(`${this.getBaseUrl()}/v1/admin/escrow/dashboard`, {
+    const response = await axios.get(`${this.getBaseUrl()}/api/v1/admin/escrow/dashboard`, {
       headers: this.getAuthHeaders(),
       withCredentials: true,
     });
@@ -85,7 +85,7 @@ class AdminOrdersAPI {
     params.append('page', page.toString());
     params.append('limit', limit.toString());
 
-    const response = await axios.get(`${this.getBaseUrl()}/v1/admin/escrow/transactions?${params.toString()}`, {
+    const response = await axios.get(`${this.getBaseUrl()}/api/v1/admin/escrow/transactions?${params.toString()}`, {
       headers: this.getAuthHeaders(),
       withCredentials: true,
     });
@@ -105,7 +105,7 @@ class AdminOrdersAPI {
     params.append('page', page.toString());
     params.append('limit', limit.toString());
 
-    const response = await axios.get(`${this.getBaseUrl()}/v1/admin/escrow/orders?${params.toString()}`, {
+    const response = await axios.get(`${this.getBaseUrl()}/api/v1/admin/escrow/orders?${params.toString()}`, {
       headers: this.getAuthHeaders(),
       withCredentials: true,
     });
@@ -118,7 +118,7 @@ class AdminOrdersAPI {
     params.append('page', page.toString());
     params.append('limit', limit.toString());
 
-    const response = await axios.get(`${this.getBaseUrl()}/v1/admin/escrow/disputes?${params.toString()}`, {
+    const response = await axios.get(`${this.getBaseUrl()}/api/v1/admin/escrow/disputes?${params.toString()}`, {
       headers: this.getAuthHeaders(),
       withCredentials: true,
     });
@@ -134,7 +134,7 @@ class AdminOrdersAPI {
     forceResolve: boolean = false
   ): Promise<{ order: Order; warning?: string }> {
     const response = await axios.post(
-      `${this.getBaseUrl()}/v1/admin/escrow/disputes/${orderId}/resolve`,
+      `${this.getBaseUrl()}/api/v1/admin/escrow/disputes/${orderId}/resolve`,
       { resolution, action, refundPercentage, forceResolve },
       {
         headers: this.getAuthHeaders(),
@@ -147,7 +147,7 @@ class AdminOrdersAPI {
   // Manual release payment
   async manualReleasePayment(orderId: string, reason: string): Promise<{ order: Order }> {
     const response = await axios.post(
-      `${this.getBaseUrl()}/v1/admin/escrow/orders/${orderId}/release`,
+      `${this.getBaseUrl()}/api/v1/admin/escrow/orders/${orderId}/release`,
       { reason },
       {
         headers: this.getAuthHeaders(),
@@ -160,7 +160,7 @@ class AdminOrdersAPI {
   // Manual refund payment
   async manualRefundPayment(orderId: string, reason: string, refundPercentage: number = 100): Promise<{ order: Order }> {
     const response = await axios.post(
-      `${this.getBaseUrl()}/v1/admin/escrow/orders/${orderId}/refund`,
+      `${this.getBaseUrl()}/api/v1/admin/escrow/orders/${orderId}/refund`,
       { reason, refundPercentage },
       {
         headers: this.getAuthHeaders(),
@@ -173,7 +173,7 @@ class AdminOrdersAPI {
   // Manual confirm pending payment (Demo/Sandbox)
   async manualConfirmPayment(orderId: string, reason: string): Promise<{ order: Order }> {
     const response = await axios.post(
-      `${this.getBaseUrl()}/v1/admin/escrow/orders/${orderId}/confirm`,
+      `${this.getBaseUrl()}/api/v1/admin/escrow/orders/${orderId}/confirm`,
       { reason },
       {
         headers: this.getAuthHeaders(),
@@ -189,7 +189,7 @@ class AdminOrdersAPI {
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
 
-    const response = await axios.get(`${this.getBaseUrl()}/v1/admin/escrow/analytics?${params.toString()}`, {
+    const response = await axios.get(`${this.getBaseUrl()}/api/v1/admin/escrow/analytics?${params.toString()}`, {
       headers: this.getAuthHeaders(),
       withCredentials: true,
     });
