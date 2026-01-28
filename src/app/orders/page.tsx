@@ -20,7 +20,7 @@ import {
   getPaymentStatusColor,
 } from '@/api/orders';
 import { useUserStore } from '@/store/useUserStore';
-import { Download, Search, TrendingUp, Package, Filter, X, AlertTriangle } from 'lucide-react';
+import { Download, Search, TrendingUp, Package, Filter, X, AlertTriangle, Star } from 'lucide-react';
 
 type TabType = 'buying' | 'selling';
 type ViewMode = 'orders' | 'statistics';
@@ -546,6 +546,20 @@ const OrdersPage = () => {
                             {getPaymentStatusLabel(order.paymentStatus)}
                           </span>
                         </div>
+
+                        {/* Rating Display */}
+                        {/* buyerRating = rating BY buyer, sellerRating = rating BY seller */}
+                        {((activeTab === 'buying' && order.buyerRating) || (activeTab === 'selling' && order.sellerRating)) && (
+                          <div className="flex items-center gap-1 mt-2">
+                            <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
+                            <span className="text-xs text-gray-600 font-medium">
+                              {activeTab === 'buying' ? order.buyerRating : order.sellerRating}/5
+                            </span>
+                            <span className="text-xs text-gray-400 ml-1">
+                              {activeTab === 'buying' ? 'Your rating' : 'Your rating'}
+                            </span>
+                          </div>
+                        )}
 
                         <div className="flex items-center justify-between mt-2">
                           <p className="text-xs text-gray-400">Order #{order.orderNumber}</p>

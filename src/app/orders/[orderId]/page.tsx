@@ -22,6 +22,7 @@ import {
 } from '@/api/orders';
 import { useUserStore } from '@/store/useUserStore';
 import { useCloudinaryUpload, useMultipleCloudinaryUpload } from '@/hooks/useCloudinaryUpload';
+import { InvoiceModal, RatingReviewSection, StarRating } from '@/components/orders';
 
 const OrderDetailsPage = () => {
   const params = useParams();
@@ -41,6 +42,7 @@ const OrderDetailsPage = () => {
   const [showPaymentProofModal, setShowPaymentProofModal] = useState(false);
   const [showPackingMediaModal, setShowPackingMediaModal] = useState(false);
   const [showImagePreviewModal, setShowImagePreviewModal] = useState<string | null>(null);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   // Form state
   const [rating, setRating] = useState(5);
@@ -320,8 +322,41 @@ const OrderDetailsPage = () => {
               {getPaymentStatusLabel(order.paymentStatus)}
             </span>
           </div>
-          <p className="text-sm text-gray-500">Order #{order.orderNumber}</p>
-          <p className="text-xs text-gray-400 mt-1">Placed on {formatDate(order.createdAt)}</p>
+
+          {/* Order Reference ID - Prominent Display */}
+          <div className="bg-gray-50 rounded-xl p-3 mb-3">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Order Reference ID</p>
+            <div className="flex items-center justify-between">
+              <p className="text-lg font-mono font-bold text-gray-800">{order.orderNumber}</p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(order.orderNumber);
+                  alert('Order ID copied to clipboard!');
+                }}
+                className="p-2 hover:bg-gray-200 rounded-lg transition"
+                title="Copy Order ID"
+              >
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-400">Placed on {formatDate(order.createdAt)}</p>
+
+          {/* Invoice Button - Available to both parties */}
+          {['payment_received', 'processing', 'shipped', 'delivered', 'confirmed'].includes(order.orderStatus) && (
+            <button
+              onClick={() => setShowInvoiceModal(true)}
+              className="mt-3 w-full py-2.5 border border-[#ffd65c] text-[#d4a84a] rounded-xl font-medium hover:bg-[#ffd65c]/10 transition flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              View Invoice
+            </button>
+          )}
         </div>
 
         {/* Product Card */}
@@ -627,6 +662,14 @@ const OrderDetailsPage = () => {
             </div>
           </div>
         )}
+
+        {/* Ratings & Reviews Section */}
+        <RatingReviewSection
+          order={order}
+          isBuyer={isBuyer}
+          isSeller={isSeller}
+          onOrderUpdate={(updatedOrder) => setOrder(updatedOrder)}
+        />
       </div>
 
       {/* Action Buttons */}
@@ -679,35 +722,74 @@ const OrderDetailsPage = () => {
             <p className="text-sm text-gray-600 mb-4">
               By confirming, the payment will be released to the seller. Make sure you have received the product.
             </p>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Rate this order</label>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button key={star} onClick={() => setRating(star)} className="text-2xl">
-                    {star <= rating ? '⭐' : '☆'}
-                  </button>
-                ))}
+
+            {/* Seller Info */}
+            <div className="flex items-center gap-3 mb-6 p-3 bg-gray-50 rounded-xl">
+              <div className="w-12 h-12 rounded-full bg-gray-200 overflow-hidden">
+                {order?.sellerId?.profileImageUrl ? (
+                  <Image
+                    src={order.sellerId.profileImageUrl}
+                    alt=""
+                    width={48}
+                    height={48}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Rate the seller</p>
+                <p className="font-medium text-gray-800">{order?.sellerId?.fullName}</p>
               </div>
             </div>
+
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Review (optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-3">How was your experience?</label>
+              <div className="flex justify-center">
+                <StarRating
+                  rating={rating}
+                  size="lg"
+                  editable
+                  onChange={setRating}
+                />
+              </div>
+              <p className="text-center text-sm text-gray-500 mt-2">
+                {rating === 1 && 'Poor'}
+                {rating === 2 && 'Fair'}
+                {rating === 3 && 'Good'}
+                {rating === 4 && 'Very Good'}
+                {rating === 5 && 'Excellent'}
+              </p>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Write a review (optional)</label>
               <textarea
                 value={review}
                 onChange={(e) => setReview(e.target.value)}
-                placeholder="Write your review..."
-                className="w-full p-3 border border-gray-200 rounded-lg resize-none h-24"
+                placeholder="Share your experience with this seller..."
+                className="w-full p-3 border border-gray-200 rounded-xl resize-none h-24 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                maxLength={500}
               />
+              <p className="text-xs text-gray-400 text-right mt-1">{review.length}/500</p>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 py-3 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition"
+              >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmDelivery}
                 disabled={actionLoading}
-                className="flex-1 py-2 bg-green-500 text-white rounded-lg disabled:opacity-50"
+                className="flex-1 py-3 bg-green-500 text-white rounded-xl font-medium hover:bg-green-600 transition disabled:opacity-50"
               >
-                {actionLoading ? 'Processing...' : 'Confirm'}
+                {actionLoading ? 'Processing...' : 'Confirm Delivery'}
               </button>
             </div>
           </div>
@@ -1144,6 +1226,11 @@ const OrderDetailsPage = () => {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+      )}
+
+      {/* Invoice Modal */}
+      {showInvoiceModal && order && (
+        <InvoiceModal order={order} onClose={() => setShowInvoiceModal(false)} />
       )}
     </div>
   );

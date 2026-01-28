@@ -395,6 +395,18 @@ export const rateBuyer = async (
   return response.data.data;
 };
 
+export const rateSeller = async (
+  orderId: string,
+  rating: number,
+  review?: string
+): Promise<{ order: Order }> => {
+  const response = await axiosInstance.post(`/orders/${orderId}/rate-seller`, {
+    rating,
+    review,
+  });
+  return response.data.data;
+};
+
 // ==========================================
 // EXPORT ORDERS
 // ==========================================
