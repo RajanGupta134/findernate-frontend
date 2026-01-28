@@ -150,23 +150,47 @@ select {
     position: fixed;
     width: 100%;
   }
-  
+
   /* Smooth transitions for mobile reels */
   .mobile-reels-transition {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
+
   /* Touch-friendly button sizes */
   .mobile-touch-target {
     min-height: 44px;
     min-width: 44px;
   }
-  
+
   /* Backdrop blur for mobile overlays */
   .mobile-backdrop-blur {
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
+}
+
+/* ── Mobile messaging keyboard stability ──────────────────────────── */
+
+/*
+ * Promote the message-input container to its own compositing layer so
+ * keyboard open/close repaints are GPU-only and don't trigger a full
+ * layout recalculation of the message list above it.
+ */
+.msg-input-container {
+  will-change: transform;
+  transform: translateZ(0);
+  contain: layout style;
+}
+
+/*
+ * Keep the messages scroll area in its own layer to isolate scroll
+ * repaints from the input bar and header.
+ */
+.msg-scroll-area {
+  will-change: scroll-position;
+  transform: translateZ(0);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 /* Line clamp utility */

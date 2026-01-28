@@ -9,12 +9,15 @@ import { unblockUser } from '@/api/user';
 import { socketManager } from '@/utils/socket';
 
 /**
- * Hook to track mobile keyboard visibility using refs instead of state
- * to avoid re-renders that cause layout shifts during message send.
+ * Hook to track mobile keyboard visibility using ONLY refs (no state)
+ * so that keyboard open/close never triggers a React re-render.
+ * The interactive-widget=resizes-content meta tag handles the actual
+ * layout adjustment natively; we only need to scroll the message list.
  */
-function useMobileKeyboard(messagesEndRef: React.RefObject<HTMLDivElement | null>) {
+function useMobileKeyboard(
+  messagesContainerRef: React.RefObject<HTMLDivElement | null>
+) {
   const keyboardVisibleRef = useRef(false);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
@@ -26,16 +29,17 @@ function useMobileKeyboard(messagesEndRef: React.RefObject<HTMLDivElement | null
       const heightDiff = initialHeight - viewport.height;
       const isOpen = heightDiff > 150;
 
-      // Only update state if the value actually changed
       if (keyboardVisibleRef.current !== isOpen) {
         keyboardVisibleRef.current = isOpen;
-        setKeyboardVisible(isOpen);
 
-        // Scroll to bottom when keyboard opens
-        if (isOpen && messagesEndRef.current) {
-          requestAnimationFrame(() => {
-            messagesEndRef.current?.scrollIntoView({ block: 'end' });
-          });
+        // Scroll messages to bottom when keyboard opens (instant, no smooth)
+        if (isOpen) {
+          const container = messagesContainerRef.current;
+          if (container) {
+            requestAnimationFrame(() => {
+              container.scrollTop = container.scrollHeight;
+            });
+          }
         }
       }
     };
@@ -43,8 +47,6 @@ function useMobileKeyboard(messagesEndRef: React.RefObject<HTMLDivElement | null
     viewport.addEventListener('resize', handleResize);
     return () => viewport.removeEventListener('resize', handleResize);
   }, []); // Empty deps - only set up once
-
-  return keyboardVisible;
 }
 
 interface RightPanelProps {
@@ -205,8 +207,8 @@ export const RightPanel: React.FC<RightPanelProps> = ({
     }
   };
 
-  // Use ref-based keyboard tracking to avoid re-renders during send
-  const keyboardVisible = useMobileKeyboard(messagesEndRef);
+  // Ref-only keyboard tracking - no state, no re-renders
+  useMobileKeyboard(messagesContainerRef);
 
   // Scroll to bottom callback for message input - uses instant scroll
   // to avoid conflict with mobile keyboard animation
@@ -240,10 +242,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
 
       <div
         ref={messagesContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50 pt-20 sm:pt-6 overscroll-contain"
-        style={{
-          WebkitOverflowScrolling: 'touch',
-        }}
+        className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50 pt-20 sm:pt-6 msg-scroll-area"
       >
         {messages.length === 0 ? (
           <div className="flex justify-center items-center h-full">
@@ -288,12 +287,10 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input container - stays in natural flex flow (no fixed positioning)
-          to avoid layout shifts on mobile when keyboard opens */}
-      <div
-        className="shrink-0 z-50 bg-white"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      >
+      {/* Input container - natural flex flow, no fixed positioning.
+          Safe-area padding is handled inside MessageInput; do NOT
+          duplicate it here or the input area will jump on keyboard toggle. */}
+      <div className="shrink-0 z-50 bg-white msg-input-container">
         {isRequestChat ? (
           <div className="p-4 border-t bg-orange-50 border-orange-200">
             <div className="flex items-center justify-center">
@@ -332,7 +329,6 @@ export const RightPanel: React.FC<RightPanelProps> = ({
               onUnblock: handleUnblock,
               isUnblocking: isUnblocking
             } : undefined}
-            keyboardVisible={keyboardVisible}
             onScrollToBottom={scrollToBottomOnSend}
           />
         )}

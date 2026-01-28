@@ -54,7 +54,6 @@ interface MessageInputProps {
     onUnblock: () => void;
     isUnblocking?: boolean;
   };
-  keyboardVisible?: boolean;
   onScrollToBottom?: () => void;
 }
 
@@ -78,7 +77,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   fileInputRef,
   isBlocked = false,
   blockedUserInfo,
-  keyboardVisible = false,
   onScrollToBottom
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
