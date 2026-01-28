@@ -84,10 +84,18 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
   const hasScrolledForCurrentChatRef = useRef(false);
   const lastChatIdRef = useRef<string | null>(null);
 
-  // Scroll to bottom when new messages arrive
-  const scrollToBottom = (force = false) => {
+  // Scroll to bottom when new messages arrive.
+  // Uses scrollTop for instant scroll during send (avoids conflict with keyboard animation)
+  // and scrollIntoView with smooth behavior for incoming messages.
+  const scrollToBottom = (force = false, instant = false) => {
     const shouldScroll = force || isNearBottomRef.current;
-    if (shouldScroll) {
+    if (!shouldScroll) return;
+
+    const container = messagesContainerRef.current;
+    if (instant && container) {
+      // Instant scroll: set scrollTop directly - no animation conflict with keyboard
+      container.scrollTop = container.scrollHeight;
+    } else {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   };
@@ -143,13 +151,13 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
 
     // Only scroll if there are actually NEW messages (count increased), not just updates
     if (isFirstLoad) {
-      // Force scroll on first load (only once per chat)
-      scrollToBottom(true);
+      // Force instant scroll on first load (only once per chat)
+      scrollToBottom(true, true);
       previousMessagesLengthRef.current = messages.length;
       hasScrolledForCurrentChatRef.current = true;
     } else if (hasNewMessages) {
-      // New message arrived, only scroll if user is near bottom
-      scrollToBottom(false);
+      // New message arrived, smooth scroll if user is near bottom
+      scrollToBottom(false, false);
       previousMessagesLengthRef.current = messages.length;
     }
 
@@ -444,16 +452,11 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     // Stop typing indicator in background
     stopTypingIndicator();
 
-    // Scroll to bottom and keep focus after DOM has updated
-    // Use requestAnimationFrame for smoother mobile keyboard handling
-    requestAnimationFrame(() => {
-      scrollToBottom(true);
-      // Double RAF ensures the DOM has fully updated before refocusing
-      // This prevents keyboard flickering on mobile devices
-      requestAnimationFrame(() => {
-        messageInputRef.current?.focus();
-      });
-    });
+    // Instant scroll after optimistic message is flushed to DOM.
+    // Using instant (non-smooth) scroll here avoids conflict with
+    // mobile keyboard animation and prevents the "message appears
+    // below keyboard then jumps up" effect.
+    scrollToBottom(true, true);
 
     try {
       // Send the message - API returns the created message directly
@@ -475,9 +478,6 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
             }
           : msg
       ));
-
-      // Keep input focused after sending (like WhatsApp)
-      messageInputRef.current?.focus();
 
     } catch (error) {
       console.error('Failed to send message:', error);

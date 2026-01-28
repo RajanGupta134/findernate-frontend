@@ -102,27 +102,31 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
 
-    // Prevent keyboard from dismissing on mobile by keeping focus
-    // Store current focus state before any async operations
     const inputElement = messageInputRef.current;
+    if (!inputElement) return;
 
-    // Use requestAnimationFrame to ensure focus is maintained smoothly
-    // This prevents the keyboard from flickering on mobile devices
-    if (inputElement) {
-      // Keep input focused during send to prevent keyboard dismiss
+    // CRITICAL: Never let the input blur during send.
+    // On mobile, losing focus = keyboard dismisses = layout shift = flicker.
+    // We attach a temporary blur prevention handler that fires before
+    // the browser can actually remove focus.
+    const preventBlur = (blurEvent: FocusEvent) => {
+      blurEvent.preventDefault();
       inputElement.focus();
-    }
+    };
+    inputElement.addEventListener('blur', preventBlur, { capture: true });
 
     onSendMessage(e, fontStyle);
 
-    // Re-ensure focus after send completes (for async operations)
+    // Remove the blur guard and re-focus after the send completes
+    // Use double-rAF to ensure React has flushed DOM updates
     requestAnimationFrame(() => {
-      if (inputElement) {
+      requestAnimationFrame(() => {
+        inputElement.removeEventListener('blur', preventBlur, { capture: true } as any);
         inputElement.focus();
-      }
-      // Scroll to bottom after sending
-      onScrollToBottom?.();
+        onScrollToBottom?.();
+      });
     });
   };
 

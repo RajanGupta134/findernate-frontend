@@ -49,7 +49,7 @@ export default function RootLayout({
     <html lang="en">
        <head>
         {/* Viewport configuration to prevent zoom issues */}
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
         <link rel="icon" href="/Findernate.ico" type="image/ico" sizes="32x32" />
         <link rel="shortcut icon" href="/Findernate.ico" />
         <link rel="manifest" href="/manifest.json" />

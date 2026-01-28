@@ -8,6 +8,45 @@ import { useBlockedUsers } from '@/hooks/useBlockedUsers';
 import { unblockUser } from '@/api/user';
 import { socketManager } from '@/utils/socket';
 
+/**
+ * Hook to track mobile keyboard visibility using refs instead of state
+ * to avoid re-renders that cause layout shifts during message send.
+ */
+function useMobileKeyboard(messagesEndRef: React.RefObject<HTMLDivElement | null>) {
+  const keyboardVisibleRef = useRef(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const viewport = window.visualViewport;
+    const initialHeight = viewport.height;
+
+    const handleResize = () => {
+      const heightDiff = initialHeight - viewport.height;
+      const isOpen = heightDiff > 150;
+
+      // Only update state if the value actually changed
+      if (keyboardVisibleRef.current !== isOpen) {
+        keyboardVisibleRef.current = isOpen;
+        setKeyboardVisible(isOpen);
+
+        // Scroll to bottom when keyboard opens
+        if (isOpen && messagesEndRef.current) {
+          requestAnimationFrame(() => {
+            messagesEndRef.current?.scrollIntoView({ block: 'end' });
+          });
+        }
+      }
+    };
+
+    viewport.addEventListener('resize', handleResize);
+    return () => viewport.removeEventListener('resize', handleResize);
+  }, []); // Empty deps - only set up once
+
+  return keyboardVisible;
+}
+
 interface RightPanelProps {
   selected: Chat;
   messages: Message[];
@@ -166,56 +205,8 @@ export const RightPanel: React.FC<RightPanelProps> = ({
     }
   };
 
-  // Visual viewport handling for mobile keyboard
-  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const inputContainerRef = useRef<HTMLDivElement>(null);
-
-  // Handle visual viewport changes for mobile keyboard
-  useEffect(() => {
-    // Check if we're on mobile and visualViewport is available
-    if (typeof window === 'undefined' || !window.visualViewport) return;
-
-    const viewport = window.visualViewport;
-    let initialHeight = viewport.height;
-
-    const handleViewportResize = () => {
-      const currentHeight = viewport.height;
-      const heightDiff = initialHeight - currentHeight;
-
-      // Keyboard is considered visible if viewport shrunk by more than 150px
-      const isKeyboardOpen = heightDiff > 150;
-
-      setKeyboardVisible(isKeyboardOpen);
-      setViewportHeight(currentHeight);
-
-      // Scroll messages to bottom when keyboard opens
-      if (isKeyboardOpen && messagesEndRef.current) {
-        requestAnimationFrame(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        });
-      }
-    };
-
-    const handleScroll = () => {
-      // Update position on scroll to keep input fixed relative to visual viewport
-      if (inputContainerRef.current && keyboardVisible) {
-        const offsetTop = viewport.offsetTop;
-        inputContainerRef.current.style.transform = `translateY(${offsetTop}px)`;
-      }
-    };
-
-    viewport.addEventListener('resize', handleViewportResize);
-    viewport.addEventListener('scroll', handleScroll);
-
-    // Initial setup
-    handleViewportResize();
-
-    return () => {
-      viewport.removeEventListener('resize', handleViewportResize);
-      viewport.removeEventListener('scroll', handleScroll);
-    };
-  }, [keyboardVisible]);
+  // Use ref-based keyboard tracking to avoid re-renders during send
+  const keyboardVisible = useMobileKeyboard(messagesEndRef);
 
   // Scroll to bottom callback for message input
   const scrollToBottomOnSend = useCallback(() => {
@@ -247,24 +238,23 @@ export const RightPanel: React.FC<RightPanelProps> = ({
 
       <div
         ref={messagesContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50 pt-20 sm:pt-6 scroll-smooth"
+        className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50 pt-20 sm:pt-6 overscroll-contain"
         style={{
-          paddingBottom: keyboardVisible ? '80px' : 'max(144px, calc(env(safe-area-inset-bottom) + 120px))',
-          transition: 'padding-bottom 0.1s ease-out'
+          WebkitOverflowScrolling: 'touch',
         }}
       >
         {messages.length === 0 ? (
           <div className="flex justify-center items-center h-full">
             <div className="text-center">
               <div className="text-gray-500 mb-2">
-                {isRequestChat ? 
-                  "This is a message request. Messages will appear here once you accept the request." : 
+                {isRequestChat ?
+                  "This is a message request. Messages will appear here once you accept the request." :
                   "No messages yet. Start a conversation!"
                 }
               </div>
               {isRequestChat && (
                 <div className="text-sm text-orange-600">
-                  💬 Check the message requests tab to accept this conversation
+                  Check the message requests tab to accept this conversation
                 </div>
               )}
             </div>
@@ -296,17 +286,12 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Fixed input container for mobile - stays above keyboard */}
+      {/* Input container - uses sticky positioning to stay in flex flow
+          and avoid the layout shifts that fixed positioning causes on mobile */}
       <div
-        ref={inputContainerRef}
-        className="fixed sm:relative bottom-0 left-0 right-0 sm:bottom-auto sm:left-auto sm:right-auto z-50 bg-white"
+        className="shrink-0 z-50 bg-white"
         style={{
-          // On mobile, position fixed at visual viewport bottom
-          bottom: keyboardVisible && viewportHeight
-            ? `calc(100vh - ${viewportHeight}px)`
-            : 0,
-          transition: keyboardVisible ? 'none' : 'bottom 0.15s ease-out',
-          willChange: 'bottom',
+          paddingBottom: keyboardVisible ? 0 : 'env(safe-area-inset-bottom, 0px)',
         }}
       >
         {isRequestChat ? (
@@ -314,7 +299,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
             <div className="flex items-center justify-center">
               <div className="bg-orange-100 border border-orange-300 rounded-lg p-3 text-center">
                 <p className="text-orange-800 font-medium text-sm">
-                  📩 This is a message request. Accept or decline to continue.
+                  This is a message request. Accept or decline to continue.
                 </p>
                 <p className="text-orange-600 text-xs mt-1">
                   You can read the messages above, but cannot reply until you accept the request.
