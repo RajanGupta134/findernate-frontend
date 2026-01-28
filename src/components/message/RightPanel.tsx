@@ -208,11 +208,13 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   // Use ref-based keyboard tracking to avoid re-renders during send
   const keyboardVisible = useMobileKeyboard(messagesEndRef);
 
-  // Scroll to bottom callback for message input
+  // Scroll to bottom callback for message input - uses instant scroll
+  // to avoid conflict with mobile keyboard animation
   const scrollToBottomOnSend = useCallback(() => {
-    requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    });
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   }, []);
 
   return (
@@ -286,13 +288,11 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input container - uses sticky positioning to stay in flex flow
-          and avoid the layout shifts that fixed positioning causes on mobile */}
+      {/* Input container - stays in natural flex flow (no fixed positioning)
+          to avoid layout shifts on mobile when keyboard opens */}
       <div
         className="shrink-0 z-50 bg-white"
-        style={{
-          paddingBottom: keyboardVisible ? 0 : 'env(safe-area-inset-bottom, 0px)',
-        }}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         {isRequestChat ? (
           <div className="p-4 border-t bg-orange-50 border-orange-200">

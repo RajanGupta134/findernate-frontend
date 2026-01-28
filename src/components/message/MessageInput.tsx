@@ -125,6 +125,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       requestAnimationFrame(() => {
         inputElement.removeEventListener('blur', preventBlur, { capture: true } as any);
         inputElement.focus();
+        // Scroll is handled by useMessageManagement after flushSync,
+        // so only scroll here as a safety fallback (instant, not smooth)
         onScrollToBottom?.();
       });
     });
@@ -174,8 +176,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       ref={containerRef}
       className="pl-4 pr-2 py-3 sm:px-4 sm:pb-4 border-t border-gray-200 bg-white relative"
       style={{
-        paddingBottom: keyboardVisible ? '0.75rem' : 'max(0.75rem, env(safe-area-inset-bottom))',
-        transition: 'padding-bottom 0.1s ease-out'
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
       }}
     >
       {selectedFile && (
