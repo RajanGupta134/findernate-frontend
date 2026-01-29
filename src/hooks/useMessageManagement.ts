@@ -457,11 +457,11 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
 
     // Prevent sending messages if this is a request chat
     if (isRequestChat) {
-      //console.log('Cannot send message - this is a request chat. User must accept first.');
       return;
     }
 
     const messageText = newMessage.trim();
+
     const tempId = `temp-${Date.now()}-${Math.random()}`;
 
     // Create optimistic message
@@ -487,10 +487,9 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     // Add to pending messages queue for FIFO matching
     messageQueue.add(tempId, selectedChat, messageText);
 
-    // React 18+ auto-batches these into a single render commit,
-    // so the optimistic message appears instantly without flushSync.
-    // flushSync was removed because it forces a synchronous layout
-    // recalculation that causes the mobile keyboard to flicker/bounce.
+    // Add the optimistic message to the list.
+    // setNewMessage("") syncs React state but MessageInput ignores it
+    // because it already cleared the DOM value (lastSyncedRef guard).
     setMessagesWithDebug(prev => [...prev, optimisticMessage]);
     setNewMessage("");
 
@@ -498,10 +497,6 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     stopTypingIndicator();
 
     // Scroll after React commits the batched update.
-    // requestAnimationFrame ensures we run after paint so the new
-    // message DOM node exists and the scroll target is correct.
-    // Using instant (non-smooth) scroll avoids conflict with the
-    // mobile keyboard animation.
     requestAnimationFrame(() => {
       scrollToBottom(true, true);
     });

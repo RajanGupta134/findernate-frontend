@@ -113,12 +113,18 @@ export const useFileUpload = ({
       // Clear file and message
       setSelectedFile(null);
       setFilePreview(null);
+
+      // Clear input via DOM directly to avoid re-render that
+      // would dismiss the mobile keyboard.
+      if (messageInputRef?.current) {
+        messageInputRef.current.value = '';
+      }
       setNewMessage("");
 
       scrollToBottom();
 
       // Keep input focused after sending (like WhatsApp)
-      messageInputRef?.current?.focus();
+      messageInputRef?.current?.focus({ preventScroll: true });
       
     } catch (error: any) {
       console.error('Failed to send file:', error);

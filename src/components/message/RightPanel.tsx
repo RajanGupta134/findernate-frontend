@@ -11,27 +11,34 @@ import { socketManager } from '@/utils/socket';
 /**
  * WhatsApp-style mobile keyboard handling.
  *
- * The core trick: set the chat container's height to exactly
- * `visualViewport.height` via direct DOM manipulation (no React state,
- * no re-renders).  The flex column layout then naturally positions the
- * input bar at the very bottom of the visible area — directly above the
- * on-screen keyboard.
+ * Strategy per platform:
  *
- * Why this works on every browser:
- *  - iOS Safari does NOT support `interactive-widget=resizes-content`,
- *    so CSS-only approaches (100dvh, etc.) fail.  The visual viewport
- *    API is the only reliable way to know the keyboard's position.
- *  - Android Chrome DOES support `interactive-widget`, but the visual
- *    viewport approach is a strict superset that works everywhere.
- *  - On desktop (no visualViewport / no resize events), the container
- *    keeps its CSS height and nothing changes.
+ * Android + `interactive-widget=resizes-content` (viewport meta):
+ *   The browser already resizes the layout viewport when the keyboard
+ *   opens, so CSS `100dvh` naturally shrinks.  We only need to detect
+ *   keyboard open/close to scroll messages to the bottom.
+ *
+ * iOS Safari (does NOT support `interactive-widget`):
+ *   CSS viewport units do NOT shrink when the keyboard opens.  We must
+ *   use the visualViewport API to read the actual visible height and
+ *   set it on the container via direct DOM manipulation.  We also need
+ *   to translate the container to account for `viewport.offsetTop`.
+ *
+ * Desktop / no visualViewport:
+ *   CSS height is used as-is, nothing changes.
  */
+function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
 function useMobileKeyboard(
   chatContainerRef: React.RefObject<HTMLDivElement | null>,
   messagesContainerRef: React.RefObject<HTMLDivElement | null>
 ) {
   const keyboardVisibleRef = useRef(false);
-  const rafIdRef = useRef<number>(0);
+  const lastHeightRef = useRef(0);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
@@ -40,46 +47,49 @@ function useMobileKeyboard(
     const container = chatContainerRef.current;
     if (!container) return;
 
-    const applyHeight = () => {
-      // Match the container to exactly what the user can see.
-      const height = viewport!.height;
-      container.style.height = `${height}px`;
+    const isiOSDevice = isIOS();
 
-      // On iOS Safari the keyboard pushes the layout viewport up, so
-      // visualViewport.offsetTop becomes > 0.  Translate the container
-      // down by that amount so it stays pinned to the visible area.
-      if (viewport!.offsetTop > 0) {
-        container.style.transform = `translateY(${viewport!.offsetTop}px)`;
-      } else {
-        container.style.transform = '';
+    // Capture the full screen height once at setup — before any keyboard
+    // is open.  On Android with interactive-widget, window.innerHeight
+    // shrinks with the keyboard so it can't be used as a stable reference.
+    const fullHeight = window.screen.height;
+
+    const update = () => {
+      const height = viewport.height;
+      const isOpen = height < fullHeight * 0.75;
+
+      if (isiOSDevice) {
+        // iOS: must set height manually since dvh doesn't respond to keyboard
+        if (height !== lastHeightRef.current) {
+          container.style.height = `${height}px`;
+          lastHeightRef.current = height;
+        }
+
+        // iOS Safari pushes the layout viewport up when keyboard opens,
+        // so visualViewport.offsetTop > 0.  Translate to compensate.
+        if (viewport.offsetTop > 0) {
+          container.style.transform = `translateY(${viewport.offsetTop}px)`;
+        } else {
+          container.style.transform = '';
+        }
       }
+      // Android: don't touch height — CSS 100dvh + interactive-widget
+      // already handles it.  Setting height here would conflict.
 
-      // Detect open → closed / closed → open transitions
-      const stableHeight = window.screen.height;
-      const isOpen = viewport!.height < stableHeight * 0.75;
-
+      // Scroll messages to bottom when keyboard opens
       if (isOpen && !keyboardVisibleRef.current) {
-        // Keyboard just opened — scroll messages to bottom instantly
         const msgs = messagesContainerRef.current;
         if (msgs) {
-          msgs.scrollTop = msgs.scrollHeight;
+          requestAnimationFrame(() => {
+            msgs.scrollTop = msgs.scrollHeight;
+          });
         }
       }
 
       keyboardVisibleRef.current = isOpen;
     };
 
-    // Coalesce rapid viewport events (keyboard animation fires many
-    // resize events) into a single rAF to prevent layout thrashing.
-    const update = () => {
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
-      rafIdRef.current = requestAnimationFrame(applyHeight);
-    };
-
-    // Set initial size synchronously
-    applyHeight();
+    update();
 
     viewport.addEventListener('resize', update);
     viewport.addEventListener('scroll', update);
@@ -87,9 +97,6 @@ function useMobileKeyboard(
     return () => {
       viewport.removeEventListener('resize', update);
       viewport.removeEventListener('scroll', update);
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
     };
   }, []); // Empty deps — only set up once
 }

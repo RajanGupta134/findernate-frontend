@@ -84,6 +84,28 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showFontDropdown, setShowFontDropdown] = useState(false);
   const [fontStyle, setFontStyle] = useState<FontStyle>({ fontFamily: 'default', fontSize: 'base' });
 
+  // Track whether the input has text — a boolean state so the send
+  // button enables/disables without storing the full string in React
+  // state (which would cause a controlled re-render on every keystroke
+  // and on clear, dismissing the mobile keyboard).
+  const [hasText, setHasText] = useState(false);
+
+  // Sync external value changes (emoji insertion, prefill) into the
+  // uncontrolled input.  We compare against what the DOM currently has
+  // to avoid overwriting the user's in-progress typing.
+  const lastSyncedRef = useRef(newMessage);
+  useEffect(() => {
+    const input = messageInputRef.current;
+    if (!input) return;
+    // Only write to the DOM if the parent pushed a NEW value that
+    // differs from what we last synced (avoids loops).
+    if (newMessage !== lastSyncedRef.current) {
+      input.value = newMessage;
+      lastSyncedRef.current = newMessage;
+      setHasText(newMessage.trim().length > 0);
+    }
+  }, [newMessage, messageInputRef]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (fontDropdownRef.current && !fontDropdownRef.current.contains(event.target as Node)) {
@@ -104,39 +126,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
     const inputElement = messageInputRef.current;
     if (!inputElement) return;
+    if (!inputElement.value.trim() && !selectedFile) return;
 
-    // CRITICAL: Never let the input blur during send.
-    // On mobile, losing focus = keyboard dismisses = layout shift = flicker.
-    //
-    // Strategy: attach a blur prevention listener BEFORE triggering the
-    // send, then clean it up after React has committed the DOM update.
-    // Also store a flag so we can re-focus synchronously if blur sneaks
-    // through before the capture listener fires.
-    let blurGuardActive = true;
-
-    const preventBlur = (blurEvent: FocusEvent) => {
-      if (blurGuardActive) {
-        blurEvent.preventDefault();
-        blurEvent.stopImmediatePropagation();
-        // Re-focus synchronously to keep keyboard open
-        inputElement.focus({ preventScroll: true });
-      }
-    };
-
-    inputElement.addEventListener('blur', preventBlur, { capture: true });
-
+    // 1. Call send FIRST — parent reads text from `newMessage` state
+    //    which is still in sync (updated on every keystroke via onInputChange).
     onSendMessage(e, fontStyle);
 
-    // Remove the blur guard after React has flushed DOM updates.
-    // Use double-rAF to guarantee the commit cycle has completed.
+    // 2. Clear the DOM input directly — no React controlled re-render,
+    //    so the browser never blurs the input and keyboard stays open.
+    inputElement.value = '';
+    setHasText(false);
+    lastSyncedRef.current = '';
+
+    // 3. Keep focus locked on the input
+    inputElement.focus({ preventScroll: true });
+
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        blurGuardActive = false;
-        inputElement.removeEventListener('blur', preventBlur, { capture: true } as any);
-        // Re-focus with preventScroll to avoid any viewport jump
-        inputElement.focus({ preventScroll: true });
-        onScrollToBottom?.();
-      });
+      onScrollToBottom?.();
     });
   };
 
@@ -246,8 +252,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             ref={messageInputRef}
             type="text"
             placeholder={selectedFile ? "Caption..." : "Message..."}
-            value={newMessage}
-            onChange={onInputChange}
+            defaultValue={newMessage}
+            onChange={(e) => {
+              // Update the boolean for the send button
+              setHasText(e.target.value.trim().length > 0);
+              lastSyncedRef.current = e.target.value;
+              // Notify parent (typing indicator, etc.)
+              onInputChange(e);
+            }}
             disabled={uploadingFile}
             enterKeyHint="send"
             inputMode="text"
@@ -334,7 +346,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
         <button
           type="submit"
-          disabled={(!newMessage.trim() && !selectedFile) || uploadingFile}
+          disabled={(!hasText && !selectedFile) || uploadingFile}
           className="p-2 sm:p-3 shrink-0 bg-[#DBB42C] hover:bg-yellow-500 text-white rounded-full transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {uploadingFile ? (
