@@ -240,6 +240,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onChange={onInputChange}
             disabled={uploadingFile}
             enterKeyHint="send"
+            inputMode="text"
             autoComplete="off"
             autoCorrect="on"
             className={`w-full py-2.5 sm:py-3 pl-3 sm:pl-4 pr-14 sm:pr-20 border border-gray-300 rounded-full focus:ring-2 focus:ring-yellow-500 disabled:opacity-50 text-black placeholder-gray-400 text-sm sm:text-base ${fontClasses}`}

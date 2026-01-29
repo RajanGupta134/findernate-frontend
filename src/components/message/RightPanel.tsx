@@ -13,6 +13,10 @@ import { socketManager } from '@/utils/socket';
  * so that keyboard open/close never triggers a React re-render.
  * The interactive-widget=resizes-content meta tag handles the actual
  * layout adjustment natively; we only need to scroll the message list.
+ *
+ * Uses window.screen.height as a stable baseline instead of the initial
+ * visualViewport.height, which can change when the mobile address bar
+ * collapses/expands and cause false keyboard-open detections.
  */
 function useMobileKeyboard(
   messagesContainerRef: React.RefObject<HTMLDivElement | null>
@@ -23,11 +27,18 @@ function useMobileKeyboard(
     if (typeof window === 'undefined' || !window.visualViewport) return;
 
     const viewport = window.visualViewport;
-    const initialHeight = viewport.height;
+
+    // screen.height is stable across address-bar collapse/expand.
+    // We compare against it with a generous threshold: if the visible
+    // viewport is significantly shorter than the screen, the keyboard
+    // is almost certainly open.
+    const stableHeight = window.screen.height;
 
     const handleResize = () => {
-      const heightDiff = initialHeight - viewport.height;
-      const isOpen = heightDiff > 150;
+      // Keyboard typically occupies 30-50% of screen height.
+      // A 25% reduction threshold avoids false positives from
+      // the address bar (which only accounts for ~5-8%).
+      const isOpen = viewport.height < stableHeight * 0.75;
 
       if (keyboardVisibleRef.current !== isOpen) {
         keyboardVisibleRef.current = isOpen;

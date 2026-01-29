@@ -180,6 +180,8 @@ select {
   will-change: transform;
   transform: translateZ(0);
   contain: layout style;
+  /* Prevent the container itself from ever being scrollable */
+  overflow: hidden;
 }
 
 /*
@@ -191,6 +193,30 @@ select {
   transform: translateZ(0);
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+/*
+ * On the /chats route the body must not scroll — the only scrollable
+ * area is the .msg-scroll-area itself. This prevents iOS from
+ * "bouncing" the body when the keyboard opens/closes, which causes
+ * the input bar to jump.
+ */
+body:has(.msg-scroll-area) {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * Ensure the chat page root container uses the dynamic viewport height
+ * so it correctly shrinks when the on-screen keyboard appears (works
+ * together with interactive-widget=resizes-content).
+ */
+@supports (height: 100dvh) {
+  body:has(.msg-scroll-area) {
+    height: 100dvh;
+  }
 }
 
 /* Line clamp utility */
