@@ -9,16 +9,25 @@ import { unblockUser } from '@/api/user';
 import { socketManager } from '@/utils/socket';
 
 /**
- * Hook to track mobile keyboard visibility using ONLY refs (no state)
- * so that keyboard open/close never triggers a React re-render.
- * The interactive-widget=resizes-content meta tag handles the actual
- * layout adjustment natively; we only need to scroll the message list.
+ * WhatsApp-style mobile keyboard handling.
  *
- * Uses window.screen.height as a stable baseline instead of the initial
- * visualViewport.height, which can change when the mobile address bar
- * collapses/expands and cause false keyboard-open detections.
+ * The core trick: set the chat container's height to exactly
+ * `visualViewport.height` via direct DOM manipulation (no React state,
+ * no re-renders).  The flex column layout then naturally positions the
+ * input bar at the very bottom of the visible area — directly above the
+ * on-screen keyboard.
+ *
+ * Why this works on every browser:
+ *  - iOS Safari does NOT support `interactive-widget=resizes-content`,
+ *    so CSS-only approaches (100dvh, etc.) fail.  The visual viewport
+ *    API is the only reliable way to know the keyboard's position.
+ *  - Android Chrome DOES support `interactive-widget`, but the visual
+ *    viewport approach is a strict superset that works everywhere.
+ *  - On desktop (no visualViewport / no resize events), the container
+ *    keeps its CSS height and nothing changes.
  */
 function useMobileKeyboard(
+  chatContainerRef: React.RefObject<HTMLDivElement | null>,
   messagesContainerRef: React.RefObject<HTMLDivElement | null>
 ) {
   const keyboardVisibleRef = useRef(false);
@@ -27,37 +36,51 @@ function useMobileKeyboard(
     if (typeof window === 'undefined' || !window.visualViewport) return;
 
     const viewport = window.visualViewport;
+    const container = chatContainerRef.current;
+    if (!container) return;
 
-    // screen.height is stable across address-bar collapse/expand.
-    // We compare against it with a generous threshold: if the visible
-    // viewport is significantly shorter than the screen, the keyboard
-    // is almost certainly open.
-    const stableHeight = window.screen.height;
+    const update = () => {
+      // Match the container to exactly what the user can see.
+      const height = viewport.height;
+      container.style.height = `${height}px`;
 
-    const handleResize = () => {
-      // Keyboard typically occupies 30-50% of screen height.
-      // A 25% reduction threshold avoids false positives from
-      // the address bar (which only accounts for ~5-8%).
+      // On iOS Safari the keyboard pushes the layout viewport up, so
+      // visualViewport.offsetTop becomes > 0.  Translate the container
+      // down by that amount so it stays pinned to the visible area.
+      if (viewport.offsetTop > 0) {
+        container.style.transform = `translateY(${viewport.offsetTop}px)`;
+      } else {
+        container.style.transform = '';
+      }
+
+      // Detect open → closed / closed → open transitions
+      const stableHeight = window.screen.height;
       const isOpen = viewport.height < stableHeight * 0.75;
 
-      if (keyboardVisibleRef.current !== isOpen) {
-        keyboardVisibleRef.current = isOpen;
-
-        // Scroll messages to bottom when keyboard opens (instant, no smooth)
-        if (isOpen) {
-          const container = messagesContainerRef.current;
-          if (container) {
-            requestAnimationFrame(() => {
-              container.scrollTop = container.scrollHeight;
-            });
-          }
+      if (isOpen && !keyboardVisibleRef.current) {
+        // Keyboard just opened — scroll messages to bottom instantly
+        const msgs = messagesContainerRef.current;
+        if (msgs) {
+          requestAnimationFrame(() => {
+            msgs.scrollTop = msgs.scrollHeight;
+          });
         }
       }
+
+      keyboardVisibleRef.current = isOpen;
     };
 
-    viewport.addEventListener('resize', handleResize);
-    return () => viewport.removeEventListener('resize', handleResize);
-  }, []); // Empty deps - only set up once
+    // Set initial size
+    update();
+
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+    };
+  }, []); // Empty deps — only set up once
 }
 
 interface RightPanelProps {
@@ -218,8 +241,12 @@ export const RightPanel: React.FC<RightPanelProps> = ({
     }
   };
 
+  // Ref for the root chat container — useMobileKeyboard sets its
+  // height directly to visualViewport.height (WhatsApp technique).
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
   // Ref-only keyboard tracking - no state, no re-renders
-  useMobileKeyboard(messagesContainerRef);
+  useMobileKeyboard(chatContainerRef, messagesContainerRef);
 
   // Scroll to bottom callback for message input - uses instant scroll
   // to avoid conflict with mobile keyboard animation
@@ -231,7 +258,10 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   }, []);
 
   return (
-    <div className="flex flex-col w-full h-full relative" style={{ height: '100dvh' }}>
+    <div
+      ref={chatContainerRef}
+      className="flex flex-col w-full h-full relative msg-chat-container"
+    >
       <ChatHeader
         selected={{ ...selected, themeColor: currentThemeColor }}
         typingUsers={typingUsers}

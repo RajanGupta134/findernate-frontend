@@ -248,7 +248,7 @@ export default function MessagePanel() {
   const shouldRenderContextMenu = showContextMenu && contextMenuTimestamp;
 
   return (
-    <div className="flex w-full h-screen">
+    <div className="flex w-full" style={{ height: '100dvh' }}>
       <LeftPanel
         activeTab={activeTab}
         setActiveTab={setActiveTab}

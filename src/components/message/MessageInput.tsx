@@ -107,24 +107,34 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
     // CRITICAL: Never let the input blur during send.
     // On mobile, losing focus = keyboard dismisses = layout shift = flicker.
-    // We attach a temporary blur prevention handler that fires before
-    // the browser can actually remove focus.
+    //
+    // Strategy: attach a blur prevention listener BEFORE triggering the
+    // send, then clean it up after React has committed the DOM update.
+    // Also store a flag so we can re-focus synchronously if blur sneaks
+    // through before the capture listener fires.
+    let blurGuardActive = true;
+
     const preventBlur = (blurEvent: FocusEvent) => {
-      blurEvent.preventDefault();
-      inputElement.focus();
+      if (blurGuardActive) {
+        blurEvent.preventDefault();
+        blurEvent.stopImmediatePropagation();
+        // Re-focus synchronously to keep keyboard open
+        inputElement.focus({ preventScroll: true });
+      }
     };
+
     inputElement.addEventListener('blur', preventBlur, { capture: true });
 
     onSendMessage(e, fontStyle);
 
-    // Remove the blur guard and re-focus after the send completes
-    // Use double-rAF to ensure React has flushed DOM updates
+    // Remove the blur guard after React has flushed DOM updates.
+    // Use double-rAF to guarantee the commit cycle has completed.
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
+        blurGuardActive = false;
         inputElement.removeEventListener('blur', preventBlur, { capture: true } as any);
-        inputElement.focus();
-        // Scroll is handled by useMessageManagement after flushSync,
-        // so only scroll here as a safety fallback (instant, not smooth)
+        // Re-focus with preventScroll to avoid any viewport jump
+        inputElement.focus({ preventScroll: true });
         onScrollToBottom?.();
       });
     });

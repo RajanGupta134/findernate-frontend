@@ -169,7 +169,21 @@ select {
   }
 }
 
-/* ── Mobile messaging keyboard stability ──────────────────────────── */
+/* ── Mobile messaging keyboard stability (WhatsApp technique) ────── */
+
+/*
+ * The chat container's height is set dynamically by useMobileKeyboard
+ * to exactly match visualViewport.height.  On desktop / when the JS
+ * hasn't run yet, fall back to 100dvh → 100vh.
+ */
+.msg-chat-container {
+  height: 100dvh;
+  height: 100vh; /* fallback for older browsers */
+  /* GPU layer so height changes are composited, not reflowed */
+  will-change: height, transform;
+  transform: translateZ(0);
+  overflow: hidden;
+}
 
 /*
  * Promote the message-input container to its own compositing layer so
@@ -197,24 +211,21 @@ select {
 
 /*
  * On the /chats route the body must not scroll — the only scrollable
- * area is the .msg-scroll-area itself. This prevents iOS from
+ * area is the .msg-scroll-area itself.  This prevents iOS from
  * "bouncing" the body when the keyboard opens/closes, which causes
  * the input bar to jump.
  */
-body:has(.msg-scroll-area) {
+body:has(.msg-chat-container) {
   overflow: hidden;
   position: fixed;
   width: 100%;
   height: 100%;
+  /* Prevent overscroll bounce on iOS */
+  overscroll-behavior: none;
 }
 
-/*
- * Ensure the chat page root container uses the dynamic viewport height
- * so it correctly shrinks when the on-screen keyboard appears (works
- * together with interactive-widget=resizes-content).
- */
 @supports (height: 100dvh) {
-  body:has(.msg-scroll-area) {
+  body:has(.msg-chat-container) {
     height: 100dvh;
   }
 }
