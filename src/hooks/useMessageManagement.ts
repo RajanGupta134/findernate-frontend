@@ -107,6 +107,45 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     return deletedMessagesCache.applyToMessages(msgs);
   };
 
+  // Keep a ref for messageRequests so the message-loading effect only
+  // re-runs when selectedChat changes, not on every request-list update.
+  const messageRequestsRef = useRef(messageRequests);
+  useEffect(() => {
+    messageRequestsRef.current = messageRequests;
+  }, [messageRequests]);
+
+  /**
+   * Set messages from server response while preserving any in-flight
+   * optimistic messages. Without this, a re-fetch triggered by a socket
+   * event would wipe out optimistic messages the server hasn't saved yet,
+   * causing them to "disappear" until the API response arrives.
+   */
+  const setServerMessages = (serverMessages: OptimisticMessage[]) => {
+    setMessagesWithDebug(prev => {
+      // Collect optimistic messages still being sent or recently failed
+      const pendingOptimistic = prev.filter(msg => {
+        const opt = msg as OptimisticMessage;
+        return opt._tempId && (opt._sending || opt._failed);
+      });
+
+      if (pendingOptimistic.length === 0) {
+        return serverMessages;
+      }
+
+      // Build a set of server message IDs for fast lookup
+      const serverIds = new Set(serverMessages.map(m => m._id));
+
+      // Keep optimistic messages whose real counterpart hasn't arrived yet
+      const stillPending = pendingOptimistic.filter(m => !serverIds.has(m._id));
+
+      if (stillPending.length === 0) {
+        return serverMessages;
+      }
+
+      return [...serverMessages, ...stillPending];
+    });
+  };
+
   // Track scroll position to determine if user is near bottom
   useEffect(() => {
     const container = messagesContainerRef.current;
@@ -207,7 +246,8 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
 
       try {
         // Check if this selected chat is in the messageRequests array (faster than API call)
-        const isRequestChatFromState = messageRequests?.some(req => req._id === chatId);
+        // Use ref to avoid re-running this entire effect when messageRequests changes.
+        const isRequestChatFromState = messageRequestsRef.current?.some(req => req._id === chatId);
         const hasBeenViewed = viewedRequests?.has(chatId) || false;
 
         if (isRequestChatFromState) {
@@ -227,20 +267,20 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
             //console.log('Messages loaded for request chat:', chatId, 'Count:', response.messages?.length || 0);
 
             if (response.messages && response.messages.length > 0) {
-              setMessagesWithDebug(applyDeletedState(response.messages));
+              setServerMessages(applyDeletedState(response.messages));
               setLoadingMessages(false);
               //console.log('Successfully loaded', response.messages.length, 'messages for request chat');
             } else {
               //console.log('No messages returned for request chat, checking cached messages and lastMessage');
-              
+
               // First, check if we have cached messages for this request chat
               const cachedMessages = requestChatCache.getMessages(chatId);
-              const requestChat = messageRequests?.find(req => req._id === chatId);
+              const requestChat = messageRequestsRef.current?.find(req => req._id === chatId);
 
               if (cachedMessages.length > 0) {
                 //console.log('Found', cachedMessages.length, 'cached messages for request chat');
                 if (currentChatRef.current === chatId) {
-                  setMessagesWithDebug(applyDeletedState(cachedMessages));
+                  setServerMessages(applyDeletedState(cachedMessages));
                   setLoadingMessages(false);
                 }
               } else if (requestChat && requestChat.lastMessage && requestChat.lastMessage.message) {
@@ -256,7 +296,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
                 // Now get the cached messages (which should include the lastMessage we just cached)
                 const updatedCachedMessages = requestChatCache.getMessages(chatId);
                 if (currentChatRef.current === chatId) {
-                  setMessagesWithDebug(applyDeletedState(updatedCachedMessages));
+                  setServerMessages(applyDeletedState(updatedCachedMessages));
                   setLoadingMessages(false);
                 }
                 //console.log('Cached and displaying lastMessage, total messages:', updatedCachedMessages.length);
@@ -276,7 +316,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
             
             // For automated contact info messages, the sender can see them even if receiver can't initially
             // Check if the current user is the sender (creator) of this chat
-            const requestChat = messageRequests?.find(req => req._id === chatId);
+            const requestChat = messageRequestsRef.current?.find(req => req._id === chatId);
             if (requestChat && requestChat.createdBy && requestChat.createdBy._id === user?._id) {
               //console.log('Current user is the sender of this request chat, trying regular message loading...');
               try {
@@ -287,7 +327,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
                 if (currentChatRef.current !== chatId) return;
 
                 //console.log('Messages loaded as regular chat for sender:', regularResponse.messages.length);
-                setMessagesWithDebug(applyDeletedState(regularResponse.messages || []));
+                setServerMessages(applyDeletedState(regularResponse.messages || []));
                 setLoadingMessages(false);
                 setIsRequestChat(false); // Allow sender to continue messaging
               } catch (regularError) {
@@ -319,7 +359,7 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
 
           //console.log('Loaded messages for regular chat:', chatId, 'count:', response.messages.length);
 
-          setMessagesWithDebug(applyDeletedState(response.messages));
+          setServerMessages(applyDeletedState(response.messages));
           setLoadingMessages(false);
         }
 
@@ -373,7 +413,13 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
         messageQueue.clearChat(selectedChat);
       }
     };
-  }, [selectedChat, messageRequests]);
+  // IMPORTANT: Only depend on selectedChat. messageRequests is read via
+  // messageRequestsRef to avoid re-running (and re-fetching all messages)
+  // every time the request list changes. That re-fetch was wiping out
+  // optimistic messages that the server hadn't saved yet, causing the
+  // "message disappears then reappears" bug.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChat]);
 
   // Intersection Observer to mark messages as seen when they come into view
   useEffect(() => {
@@ -462,25 +508,46 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
       // Send the message - API returns the created message directly
       const sentMessage = await messageAPI.sendMessage(selectedChat, messageText);
 
-      // Remove from pending queue since we're handling the update here
-      // This prevents the socket event from trying to match it again
+      // Remove from pending queue. If the socket `new_message` handler
+      // already dequeued it, this is a no-op (returns false).
       messageQueue.remove(tempId);
 
-      // Immediately update the optimistic message with real data
-      // This provides instant feedback without waiting for socket event
-      setMessagesWithDebug(prev => prev.map(msg =>
-        msg._tempId === tempId
-          ? {
-              ...sentMessage,
-              _tempId: tempId, // Keep tempId for React key stability
-              _sending: false,
-              _failed: false
-            }
-          : msg
-      ));
+      // Update the optimistic message with real server data.
+      // Use functional update so this works correctly even if the socket
+      // handler has already replaced the optimistic message (the _tempId
+      // match would simply find nothing, and the direct _id check
+      // prevents adding a duplicate).
+      setMessagesWithDebug(prev => {
+        // If the socket handler already replaced this message (matched
+        // by server _id), don't add a duplicate.
+        const alreadyHasServerId = prev.some(msg => msg._id === sentMessage._id);
+        if (alreadyHasServerId) {
+          // Just make sure the _sending flag is cleared
+          return prev.map(msg =>
+            msg._id === sentMessage._id
+              ? { ...msg, _sending: false, _failed: false }
+              : msg
+          );
+        }
+
+        // Otherwise replace the optimistic message by _tempId
+        return prev.map(msg =>
+          msg._tempId === tempId
+            ? {
+                ...sentMessage,
+                _tempId: tempId, // Keep tempId for React key stability
+                _sending: false,
+                _failed: false
+              }
+            : msg
+        );
+      });
 
     } catch (error) {
       console.error('Failed to send message:', error);
+
+      // Remove from queue on failure so socket handler doesn't try to match
+      messageQueue.remove(tempId);
 
       // Mark message as failed only if API call fails
       setMessagesWithDebug(prev => prev.map(msg =>

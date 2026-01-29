@@ -155,10 +155,17 @@ export const useSocket = ({
         processedMessageIds.current = new Set(idsArray.slice(-1000));
       }
 
-      const chatInRegular = chats.find(c => c._id === data.chatId);
-      const chatInRequests = messageRequests.find(r => r._id === data.chatId);
+      // IMPORTANT: Use refs to get current values — the closure captures stale
+      // variables from when the effect ran. Without refs, chats/messageRequests
+      // are always the initial empty arrays, causing every message to hit the
+      // "unknown chat" fallback which reloads all chats and triggers a message
+      // re-fetch that wipes out optimistic messages.
+      const currentChats = chatsRef.current;
+      const currentRequests = messageRequestsRef.current;
+      const chatInRegular = currentChats.find(c => c._id === data.chatId);
+      const chatInRequests = currentRequests.find(r => r._id === data.chatId);
       const chat = chatInRegular || chatInRequests;
-      
+
       if (!chat) {
         // //console.log('New message from unknown chat, reloading chats...');
         if (user) {
@@ -272,7 +279,7 @@ export const useSocket = ({
           }
 
           // Strategy 3: New message from another user or no optimistic match found
-          const chatInRequests = messageRequests.find(r => r._id === data.chatId);
+          const chatInRequests = messageRequestsRef.current.find(r => r._id === data.chatId);
           if (chatInRequests) {
             requestChatCache.addMessage(data.chatId, data.message);
           }
