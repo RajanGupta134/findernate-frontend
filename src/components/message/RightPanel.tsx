@@ -31,6 +31,7 @@ function useMobileKeyboard(
   messagesContainerRef: React.RefObject<HTMLDivElement | null>
 ) {
   const keyboardVisibleRef = useRef(false);
+  const rafIdRef = useRef<number>(0);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
@@ -39,39 +40,46 @@ function useMobileKeyboard(
     const container = chatContainerRef.current;
     if (!container) return;
 
-    const update = () => {
+    const applyHeight = () => {
       // Match the container to exactly what the user can see.
-      const height = viewport.height;
+      const height = viewport!.height;
       container.style.height = `${height}px`;
 
       // On iOS Safari the keyboard pushes the layout viewport up, so
       // visualViewport.offsetTop becomes > 0.  Translate the container
       // down by that amount so it stays pinned to the visible area.
-      if (viewport.offsetTop > 0) {
-        container.style.transform = `translateY(${viewport.offsetTop}px)`;
+      if (viewport!.offsetTop > 0) {
+        container.style.transform = `translateY(${viewport!.offsetTop}px)`;
       } else {
         container.style.transform = '';
       }
 
       // Detect open → closed / closed → open transitions
       const stableHeight = window.screen.height;
-      const isOpen = viewport.height < stableHeight * 0.75;
+      const isOpen = viewport!.height < stableHeight * 0.75;
 
       if (isOpen && !keyboardVisibleRef.current) {
         // Keyboard just opened — scroll messages to bottom instantly
         const msgs = messagesContainerRef.current;
         if (msgs) {
-          requestAnimationFrame(() => {
-            msgs.scrollTop = msgs.scrollHeight;
-          });
+          msgs.scrollTop = msgs.scrollHeight;
         }
       }
 
       keyboardVisibleRef.current = isOpen;
     };
 
-    // Set initial size
-    update();
+    // Coalesce rapid viewport events (keyboard animation fires many
+    // resize events) into a single rAF to prevent layout thrashing.
+    const update = () => {
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+      rafIdRef.current = requestAnimationFrame(applyHeight);
+    };
+
+    // Set initial size synchronously
+    applyHeight();
 
     viewport.addEventListener('resize', update);
     viewport.addEventListener('scroll', update);
@@ -79,6 +87,9 @@ function useMobileKeyboard(
     return () => {
       viewport.removeEventListener('resize', update);
       viewport.removeEventListener('scroll', update);
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
     };
   }, []); // Empty deps — only set up once
 }

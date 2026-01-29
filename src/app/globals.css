@@ -183,6 +183,10 @@ select {
   will-change: height, transform;
   transform: translateZ(0);
   overflow: hidden;
+  /* Smooth height transition when keyboard opens/closes — matches
+     the ~300ms keyboard animation on both iOS and Android so the
+     container resizes in sync instead of jumping frame-by-frame. */
+  transition: height 0.3s ease, transform 0.3s ease;
 }
 
 /*

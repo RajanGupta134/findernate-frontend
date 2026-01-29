@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { flushSync } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { messageAPI, Message, Chat } from '@/api/message';
 import socketManager from '@/utils/socket';
@@ -488,21 +487,24 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     // Add to pending messages queue for FIFO matching
     messageQueue.add(tempId, selectedChat, messageText);
 
-    // Use flushSync to immediately render the optimistic message before the API call
-    // This ensures the message appears instantly on screen
-    flushSync(() => {
-      setMessagesWithDebug(prev => [...prev, optimisticMessage]);
-      setNewMessage("");
-    });
+    // React 18+ auto-batches these into a single render commit,
+    // so the optimistic message appears instantly without flushSync.
+    // flushSync was removed because it forces a synchronous layout
+    // recalculation that causes the mobile keyboard to flicker/bounce.
+    setMessagesWithDebug(prev => [...prev, optimisticMessage]);
+    setNewMessage("");
 
     // Stop typing indicator in background
     stopTypingIndicator();
 
-    // Instant scroll after optimistic message is flushed to DOM.
-    // Using instant (non-smooth) scroll here avoids conflict with
-    // mobile keyboard animation and prevents the "message appears
-    // below keyboard then jumps up" effect.
-    scrollToBottom(true, true);
+    // Scroll after React commits the batched update.
+    // requestAnimationFrame ensures we run after paint so the new
+    // message DOM node exists and the scroll target is correct.
+    // Using instant (non-smooth) scroll avoids conflict with the
+    // mobile keyboard animation.
+    requestAnimationFrame(() => {
+      scrollToBottom(true, true);
+    });
 
     try {
       // Send the message - API returns the created message directly
@@ -721,16 +723,15 @@ export const useMessageManagement = ({ selectedChat, user, setChats, messageRequ
     // Add back to pending messages queue for FIFO matching
     messageQueue.add(tempId, selectedChat, failedMessage.message);
 
-    // Mark as sending again with immediate render
-    flushSync(() => {
-      setMessagesWithDebug(prev =>
-        prev.map(msg =>
-          msg._tempId === tempId
-            ? { ...msg, _sending: true, _failed: false }
-            : msg
-        )
-      );
-    });
+    // Mark as sending again — React 18 auto-batching ensures this
+    // renders in the next frame without needing flushSync.
+    setMessagesWithDebug(prev =>
+      prev.map(msg =>
+        msg._tempId === tempId
+          ? { ...msg, _sending: true, _failed: false }
+          : msg
+      )
+    );
 
     try {
       // Send the message - let socket handle the confirmation
