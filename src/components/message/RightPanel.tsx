@@ -280,32 +280,35 @@ export const RightPanel: React.FC<RightPanelProps> = ({
       ref={chatContainerRef}
       className="flex flex-col w-full h-full relative msg-chat-container overflow-hidden"
     >
-      <ChatHeader
-        selected={{ ...selected, themeColor: currentThemeColor }}
-        typingUsers={typingUsers}
-        onlineStatus={Object.fromEntries(
-          Array.from(onlineUsers.entries()).map(([id, status]) => [
-            id,
-            { ...status, canSeeStatus: status.canSeeStatus !== false }
-          ])
-        )}
-        getChatAvatar={getChatAvatar}
-        getChatDisplayName={getChatDisplayName}
-        onProfileClick={onProfileClick}
-        onBack={onBack}
-        onVoiceCall={onVoiceCall}
-        onVideoCall={onVideoCall}
-        isInitiatingCall={isInitiatingCall}
-        onThemeChange={handleThemeChange}
-        currentUserId={user?._id}
-      />
-
       <div
         ref={messagesContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50 msg-scroll-area"
+        className="flex-1 min-h-0 overflow-y-auto bg-gray-50 msg-scroll-area"
       >
+        <div className="sticky top-0 z-10 bg-white">
+          <ChatHeader
+            selected={{ ...selected, themeColor: currentThemeColor }}
+            typingUsers={typingUsers}
+            onlineStatus={Object.fromEntries(
+              Array.from(onlineUsers.entries()).map(([id, status]) => [
+                id,
+                { ...status, canSeeStatus: status.canSeeStatus !== false }
+              ])
+            )}
+            getChatAvatar={getChatAvatar}
+            getChatDisplayName={getChatDisplayName}
+            onProfileClick={onProfileClick}
+            onBack={onBack}
+            onVoiceCall={onVoiceCall}
+            onVideoCall={onVideoCall}
+            isInitiatingCall={isInitiatingCall}
+            onThemeChange={handleThemeChange}
+            currentUserId={user?._id}
+          />
+        </div>
+
+        <div className="p-6">
         {messages.length === 0 ? (
-          <div className="flex justify-center items-center h-full">
+          <div className="flex justify-center items-center" style={{ minHeight: 'calc(100% - 80px)' }}>
             <div className="text-center">
               <div className="text-gray-500 mb-2">
                 {isRequestChat ?
@@ -321,7 +324,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
             </div>
           </div>
         ) : loadingMessages && messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center" style={{ minHeight: 'calc(100% - 80px)' }}>
             <div className="text-gray-400">
               <svg className="animate-spin h-8 w-8 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -345,6 +348,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
           ))
         )}
         <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Input container - natural flex flow, no fixed positioning.
