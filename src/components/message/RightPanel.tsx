@@ -280,32 +280,30 @@ export const RightPanel: React.FC<RightPanelProps> = ({
       ref={chatContainerRef}
       className="flex flex-col w-full h-full relative msg-chat-container overflow-hidden"
     >
+      <ChatHeader
+        selected={{ ...selected, themeColor: currentThemeColor }}
+        typingUsers={typingUsers}
+        onlineStatus={Object.fromEntries(
+          Array.from(onlineUsers.entries()).map(([id, status]) => [
+            id,
+            { ...status, canSeeStatus: status.canSeeStatus !== false }
+          ])
+        )}
+        getChatAvatar={getChatAvatar}
+        getChatDisplayName={getChatDisplayName}
+        onProfileClick={onProfileClick}
+        onBack={onBack}
+        onVoiceCall={onVoiceCall}
+        onVideoCall={onVideoCall}
+        isInitiatingCall={isInitiatingCall}
+        onThemeChange={handleThemeChange}
+        currentUserId={user?._id}
+      />
+
       <div
         ref={messagesContainerRef}
         className="flex-1 min-h-0 overflow-y-auto bg-gray-50 msg-scroll-area"
       >
-        <div className="sticky top-0 z-10 bg-white">
-          <ChatHeader
-            selected={{ ...selected, themeColor: currentThemeColor }}
-            typingUsers={typingUsers}
-            onlineStatus={Object.fromEntries(
-              Array.from(onlineUsers.entries()).map(([id, status]) => [
-                id,
-                { ...status, canSeeStatus: status.canSeeStatus !== false }
-              ])
-            )}
-            getChatAvatar={getChatAvatar}
-            getChatDisplayName={getChatDisplayName}
-            onProfileClick={onProfileClick}
-            onBack={onBack}
-            onVoiceCall={onVoiceCall}
-            onVideoCall={onVideoCall}
-            isInitiatingCall={isInitiatingCall}
-            onThemeChange={handleThemeChange}
-            currentUserId={user?._id}
-          />
-        </div>
-
         <div className="p-6">
         {messages.length === 0 ? (
           <div className="flex justify-center items-center" style={{ minHeight: 'calc(100% - 80px)' }}>

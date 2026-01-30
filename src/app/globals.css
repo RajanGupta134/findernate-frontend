@@ -181,7 +181,6 @@ select {
   height: 100vh; /* fallback for older browsers */
   height: 100dvh; /* modern: accounts for mobile browser chrome */
   will-change: height, transform;
-  transform: translateZ(0);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -204,7 +203,6 @@ select {
  */
 .msg-scroll-area {
   will-change: scroll-position;
-  transform: translateZ(0);
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
