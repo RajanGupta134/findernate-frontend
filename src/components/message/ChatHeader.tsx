@@ -73,7 +73,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
   const participantStatus = getOtherParticipantStatus();
   return (
-    <div className="fixed sm:sticky top-0 left-0 right-0 z-10 p-3 sm:p-6 border-b border-gray-200 bg-white">
+    <div className="sticky top-0 z-10 p-3 sm:p-6 border-b border-gray-200 bg-white shrink-0">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center min-w-0 flex-1">
           {onBack && (

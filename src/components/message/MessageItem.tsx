@@ -264,8 +264,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   className="animate-fadeIn flex items-center gap-1"
                 >
                   <CheckCheck
-                    className="w-3 h-3 transition-all duration-200 ease-out"
-                    style={{ color: seenTickColor }}
+                    className="w-3.5 h-3.5 transition-all duration-200 ease-out"
+                    style={{ color: '#3B82F6', strokeWidth: 3 }}
                   />
                   {getSeenTime(msg) && (
                     <span className="text-[10px] opacity-70">{getSeenTime(msg)}</span>
@@ -273,7 +273,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 </span>
               ) : msg.status === 'delivered' ? (
                 <span title="Delivered" className="animate-fadeIn">
-                  <CheckCheck className="w-3 h-3 transition-all duration-200 ease-out opacity-70" />
+                  <CheckCheck className="w-3 h-3 transition-all duration-200 ease-out opacity-80" />
                 </span>
               ) : (
                 <span title="Sent" className="animate-fadeIn">

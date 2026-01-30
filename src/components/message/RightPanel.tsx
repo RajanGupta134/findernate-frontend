@@ -301,7 +301,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
 
       <div
         ref={messagesContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50 pt-20 sm:pt-6 msg-scroll-area"
+        className="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50 msg-scroll-area"
       >
         {messages.length === 0 ? (
           <div className="flex justify-center items-center h-full">
