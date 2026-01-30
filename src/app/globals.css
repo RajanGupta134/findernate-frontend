@@ -178,11 +178,13 @@ select {
  * visualViewport.height.
  */
 .msg-chat-container {
-  height: 100dvh;
   height: 100vh; /* fallback for older browsers */
+  height: 100dvh; /* modern: accounts for mobile browser chrome */
   will-change: height, transform;
   transform: translateZ(0);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /*

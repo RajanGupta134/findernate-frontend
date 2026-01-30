@@ -278,7 +278,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
   return (
     <div
       ref={chatContainerRef}
-      className="flex flex-col w-full h-full relative msg-chat-container"
+      className="flex flex-col w-full h-full relative msg-chat-container overflow-hidden"
     >
       <ChatHeader
         selected={{ ...selected, themeColor: currentThemeColor }}

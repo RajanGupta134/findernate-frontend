@@ -273,11 +273,11 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 </span>
               ) : msg.status === 'delivered' ? (
                 <span title="Delivered" className="animate-fadeIn">
-                  <CheckCheck className="w-3 h-3 transition-all duration-200 ease-out opacity-80" />
+                  <CheckCheck className="w-3.5 h-3.5 transition-all duration-200 ease-out text-white" />
                 </span>
               ) : (
                 <span title="Sent" className="animate-fadeIn">
-                  <Check className="w-3 h-3 transition-all duration-200 ease-out opacity-70" />
+                  <Check className="w-3 h-3 transition-all duration-200 ease-out text-white opacity-80" />
                 </span>
               )}
             </span>
