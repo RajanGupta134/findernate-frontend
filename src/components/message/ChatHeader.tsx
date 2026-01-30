@@ -22,6 +22,7 @@ interface ChatHeaderProps {
     }
   };
   onThemeChange?: (themeColor: string) => void;
+  currentUserId?: string;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -35,7 +36,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onVideoCall,
   isInitiatingCall = false,
   onlineStatus,
-  onThemeChange
+  onThemeChange,
+  currentUserId
 }) => {
   const defaultColor = '#DBB42C';
   const themeColor = selected.themeColor || defaultColor;
@@ -44,7 +46,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const getOtherParticipantStatus = () => {
     if (selected.chatType !== 'direct' || !onlineStatus) return null;
 
-    const otherParticipant = selected.participants.find(p => p._id !== selected.createdBy._id);
+    const currentId = currentUserId || selected.createdBy._id;
+    const otherParticipant = selected.participants.find(p => p._id !== currentId);
     if (!otherParticipant) return null;
 
     const status = onlineStatus[otherParticipant._id];
@@ -73,7 +76,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
   const participantStatus = getOtherParticipantStatus();
   return (
-    <div className="sticky top-0 z-10 p-3 sm:p-6 border-b border-gray-200 bg-white shrink-0">
+    <div className="z-10 p-3 sm:p-6 border-b border-gray-200 bg-white shrink-0">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center min-w-0 flex-1">
           {onBack && (

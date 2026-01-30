@@ -297,6 +297,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
         onVideoCall={onVideoCall}
         isInitiatingCall={isInitiatingCall}
         onThemeChange={handleThemeChange}
+        currentUserId={user?._id}
       />
 
       <div
